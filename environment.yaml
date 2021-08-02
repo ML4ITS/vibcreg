@@ -1,0 +1,18 @@
+name: vibcreg
+channels:
+  - pytorch
+  - nvidia
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - cudatoolkit=11.1
+  - pytorch
+  - torchvision
+  - numpy
+  - matplotlib
+  - ipython
+  - pip:
+    - transformers
+    - einops
+    - statsmodels
