@@ -1,16 +1,19 @@
+import os
 import yaml
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 
-from preprocess.augmentations import Augmentations
-from preprocess.preprocess_ucr import DatasetImporter, UCRDataset
+from vibcreg.preprocess.augmentations import Augmentations
+from vibcreg.preprocess.preprocess_ucr import DatasetImporter, UCRDataset
 
-from backbone.resnet import ResNet1D
-from frameworks.vibcreg_ import VIbCReg, Utility_VIbCReg
+from vibcreg.backbone.resnet import ResNet1D
+from vibcreg.frameworks.vibcreg_ import VIbCReg, Utility_VIbCReg
+
+os.chdir("../")
 
 # load hyper-parameters
-stream = open("./configs/example_ucr.yaml", 'r')
+stream = open("./examples/configs/example_ucr.yaml", 'r')
 cf = yaml.load(stream, Loader=yaml.FullLoader)  # config
 
 # data pipeline
