@@ -131,3 +131,8 @@ dmypy.json
 # Datasets
 vibcreg/data/
 
+# ignore saved model.
+vibcreg/checkpoints/
+
+# wandb
+vibcreg/wandb/

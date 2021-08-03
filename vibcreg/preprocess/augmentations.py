@@ -5,7 +5,7 @@ import numpy as np
 
 
 class Augmentations(object):
-    def __init__(self, subseq_len, AmpR_rate=0.3, Vshift_rate=0.5):
+    def __init__(self, subseq_len, AmpR_rate=0.3, Vshift_rate=0.5, **kwargs):
         """
         :param subseq_len: length of a subsequence of input time series.
         :param AmpR_rate: rate for the `random amplitude resize`.

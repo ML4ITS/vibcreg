@@ -41,7 +41,7 @@ class DatasetImporter(object):
     1. It imports one dataset from the UCR archive.
     2. splits into `X_train`, `X_test`, `Y_train`, and `Y_test`.
     """
-    def __init__(self, ucr_dataset_name: str, train_data_ratio: int = 0.8, test_data_ratio: int = 0.2, train_random_seed: int = 0, test_random_seed: int = 0):
+    def __init__(self, ucr_dataset_name: str, train_data_ratio: int = 0.8, test_data_ratio: int = 0.2, train_random_seed: int = 0, test_random_seed: int = 0, **kwargs):
         """
         :param ucr_dataset_name: e.g., "Crop"
         :param train_data_ratio: 0.8 means 80% of a dataset
@@ -61,7 +61,6 @@ class DatasetImporter(object):
         sub_rand_indices, rand_indices_test, sub_Y, _ = train_test_split(rand_indices, Y, test_size=test_data_ratio, stratify=Y.reshape(-1), random_state=test_random_seed)
         test_size = 1 - (train_data_ratio * (1 / (1 - test_data_ratio)))
 
-        print("# test_size:", test_size)
         if test_size == 0:
             rand_indices_train = sub_rand_indices.copy()
         else:
@@ -78,7 +77,7 @@ class DatasetImporter(object):
 
 
 class UCRDataset(Dataset):
-    def __init__(self, kind: str, dataset_importer: DatasetImporter, augs: Augmentations, used_augmentations: list, data_scaling: bool = True):
+    def __init__(self, kind: str, dataset_importer: DatasetImporter, augs: Augmentations, used_augmentations: list, data_scaling: bool = True, **kwargs):
         """
         :param kind: "train" / "test"
         :param dataset_importer: instance of the `DatasetImporter` class.
@@ -122,7 +121,7 @@ class UCRDataset(Dataset):
         new_xs = []
         for x in xs:
             new_xs.append(x.astype(np.float32))
-        return xs[0] if (len(xs) == 1) else xs
+        return new_xs[0] if (len(xs) == 1) else new_xs
 
     def __getitem__(self, idx):
         x, y = self.X[idx, :], self.Y[idx, :]
@@ -138,11 +137,11 @@ class UCRDataset(Dataset):
         # augmentations
         used_augs = [] if self.kind == "test" else self.used_augmentations
         for aug in used_augs:
-            if aug == "RC":
+            if aug == "RC":  # random crop
                 subx_view1, subx_view2 = self.augs.random_crop(subx_view1, subx_view2)
-            if aug == "AmpR":
+            if aug == "AmpR":  # random amplitude resize
                 subx_view1, subx_view2 = self.augs.amplitude_resize(subx_view1, subx_view2)
-            if aug == "Vshift":
+            if aug == "Vshift":  # random vertical shift
                 subx_view1, subx_view2 = self.augs.vertical_shift(std_x, subx_view1, subx_view2)
 
         subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)

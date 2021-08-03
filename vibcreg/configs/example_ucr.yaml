@@ -1,0 +1,28 @@
+# The yaml format follows W&B's: (https://docs.wandb.ai/guides/track/config)
+
+# data pipeline
+ucr_dataset_name: "WordSynonyms"
+subseq_len: 135
+batch_size: 256
+used_augmentations: ["RC", "AmpR", "Vshift"]
+num_workers: 0
+
+# framework
+in_channels_enc: 1
+lambda_vibcreg: 25.
+mu_vibcreg: 25.
+nu_vibcreg: 25.
+loss_type_vibcreg: "mse"
+device_ids:
+  - 0
+weight_on_msfLoss: 0.
+n_epochs: 100
+framework_type: "vibcreg"
+use_wandb: True
+
+# optimizer
+lr: 0.001
+weight_decay: 0.00001
+
+# run
+tsne_analysis_log_epochs: [1, 10, 20, 30, 40, 50, 100]

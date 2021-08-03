@@ -17,7 +17,7 @@ from torch import relu
 from vibcreg.normalization.iter_norm import IterNorm
 
 
-def _normalization_layer(norm_layer_type, num_channels, dim, num_groups_IterN=64):
+def normalization_layer(norm_layer_type, num_channels, dim, num_groups_IterN=64):
     """
     dim: #dimension of data
     """
@@ -42,7 +42,7 @@ class FirstBlock(nn.Module):
 
         # define layers
         self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride)
-        self.nl1 = _normalization_layer(norm_layer_type, out_channels, dim=3)
+        self.nl1 = normalization_layer(norm_layer_type, out_channels, dim=3)
         self.maxpool1 = nn.MaxPool1d(kernel_size=3, stride=2)
         self.do1 = nn.Dropout(dropout_rate)
 
@@ -72,9 +72,9 @@ class ResidualBlock(nn.Module):
 
         # define layers
         self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride)
-        self.nl1 = _normalization_layer(norm_layer_type, out_channels, dim=3)
+        self.nl1 = normalization_layer(norm_layer_type, out_channels, dim=3)
         self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, 1)
-        self.nl2 = _normalization_layer(norm_layer_type, out_channels, dim=3)
+        self.nl2 = normalization_layer(norm_layer_type, out_channels, dim=3)
         self.do1 = nn.Dropout(dropout_rate)
 
         if self.stride != 1:
@@ -132,6 +132,8 @@ class ResNet1D(nn.Module):
                 self.res_blocks.append(ResidualBlock(in_channels, out_channels, kernel_size, stride, norm_layer_type, dropout_rate))
                 in_channels = out_channels
 
+        self.out_channels_backbone = in_channels
+
         # define global average pooling layer
         self.global_avgpool = nn.AdaptiveAvgPool1d(1)
 
@@ -155,6 +157,7 @@ if __name__ == "__main__":
     # build a model
     resnet1d = ResNet1D(in_channels=1)
     print("# resnet1d:\n", resnet1d, end='\n\n')
+    print("out_channels_backbone: ", resnet1d.out_channels_backbone)
 
     # generate a toy dataset
     batch_size = 32
