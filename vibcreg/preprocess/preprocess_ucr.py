@@ -157,6 +157,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     os.chdir("../")
 
+    # data pipeline
     augs = Augmentations(subseq_len=48)
     dataset_importer = DatasetImporter("ElectricDevices")
     train_dataset = UCRDataset("train", dataset_importer, augs, ["RC", "AmpR", "Vshift"])
@@ -164,6 +165,7 @@ if __name__ == "__main__":
     train_data_loader = DataLoader(train_dataset, batch_size=32, num_workers=0, shuffle=True)
     test_data_loader = DataLoader(test_dataset, batch_size=32, num_workers=0, shuffle=True)
 
+    # get a mini-batch of samples
     for subx_view1, subx_view2, y in train_data_loader:
     # for subx_view1, subx_view2, y in test_data_loader:
         break
