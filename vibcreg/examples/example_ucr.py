@@ -25,19 +25,19 @@ train_data_loader = DataLoader(train_dataset, cf["batch_size"], num_workers=cf["
 test_data_loader = DataLoader(test_dataset, cf["batch_size"], num_workers=cf["num_workers"], shuffle=True)
 
 # framework
-encoder = ResNet1D(cf["in_channels_enc"])
+encoder = ResNet1D(cf["in_channels_enc"])  # backbone-encoder
 rl_model = nn.DataParallel(VIbCReg(encoder, encoder.out_channels_backbone, **cf))
 rl_util = Utility_VIbCReg(rl_model=rl_model, **cf)
 
 # optimizer
 optimizer = AdamW(rl_model.parameters(), lr=cf["lr"], weight_decay=cf["weight_decay"])
-rl_util.setup_lr_scheduler(optimizer, train_data_loader)
+rl_util.setup_lr_scheduler(optimizer, kind="CosineAnnealingLR", train_dataset_size=train_dataset.__len__())
 
 # W&B
 rl_util.init_wandb(config=cf)
 rl_util.wandb_watch()
 
-# run SSL
+# run SSL for RL
 for epoch in range(1, cf["n_epochs"] + 1):
     rl_util.update_epoch(epoch)
     train_loss = rl_util.representation_learning(train_data_loader, optimizer, "train")
@@ -51,7 +51,7 @@ for epoch in range(1, cf["n_epochs"] + 1):
         rl_util.get_batch_of_representations(test_data_loader)  # stored internally
         rl_util.log_feature_histogram()
         rl_util.log_tsne_analysis()
-        rl_util.log_cross_correlation_matrix(train_data_loader) if cf["framework_type"] == "barlow_twins" else None
+        # rl_util.log_cross_correlation_matrix(train_data_loader) if cf["framework_type"] == "barlow_twins" else None
 
 test_loss = rl_util.test(test_data_loader, optimizer)
 rl_util.test_log(test_loss)

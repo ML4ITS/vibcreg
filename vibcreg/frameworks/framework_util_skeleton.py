@@ -62,9 +62,13 @@ class Utility_SSL(ABC):
     def update_epoch(self, epoch):
         self.epoch = epoch
 
-    def setup_lr_scheduler(self, optimizer, train_data_loader):
-        n_gpus = len(self.device_ids)
-        self.lr_scheduler = CosineAnnealingLR(optimizer, train_data_loader, n_gpus, self.batch_size, self.n_epochs).get_lr_scheduler()
+    def setup_lr_scheduler(self, optimizer, kind="CosineAnnealingLR", **kwargs):
+        if kind == "CosineAnnealingLR":
+            train_dataset_size = kwargs.get("train_dataset_size", None)
+            n_gpus = len(self.device_ids)
+            self.lr_scheduler = CosineAnnealingLR(optimizer, train_dataset_size, n_gpus, self.batch_size, self.n_epochs).get_lr_scheduler()
+        else:
+            raise ValueError("unavailable name for `lr_scheduler`.")
 
     def init_wandb(self, config):
         matplotlib.use('Agg')  # eliminates the issue of 'TclError: Can't find a usable tk.tcl in the following directories:' when using `matplotlib`.

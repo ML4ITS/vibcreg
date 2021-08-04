@@ -10,10 +10,10 @@ class LRScheduler(ABC):
 
 
 class CosineAnnealingLR(LRScheduler):
-    def __init__(self, optimizer, train_data_loader, n_gpus, batch_size, n_epochs, T_max=None, eta_min=0.):
+    def __init__(self, optimizer, train_dataset_size, n_gpus, batch_size, n_epochs, T_max=None, eta_min=0.):
         """
         :param optimizer:
-        :param train_data_loader:
+        :param train_dataset_size:
         :param n_gpus:
         :param batch_size:
         :param n_epochs:
@@ -21,7 +21,7 @@ class CosineAnnealingLR(LRScheduler):
         :param eta_min: Minimum learning rate.
         """
         self.optimizer = optimizer
-        self.train_data_loader = train_data_loader
+        self.train_dataset_size = train_dataset_size
         self.n_gpus = n_gpus
         self.batch_size = batch_size
         self.n_epochs = n_epochs
@@ -32,7 +32,7 @@ class CosineAnnealingLR(LRScheduler):
         """
         i.e., a number of mini-batches of a training dataset.
         """
-        n_train_iters_in_a_batch = np.ceil(self.train_data_loader.dataset.__len__() / self.batch_size)
+        n_train_iters_in_a_batch = np.ceil(self.train_dataset_size / self.batch_size)
         return n_train_iters_in_a_batch
 
     def get_lr_scheduler(self):
