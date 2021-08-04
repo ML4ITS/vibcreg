@@ -129,7 +129,8 @@ dmypy.json
 .pyre/
 
 # Datasets
-vibcreg/data/
+vibcreg/data/UCRArchive_2018/
+vibcreg/data/PTB-XL/
 
 # ignore saved model.
 vibcreg/checkpoints/
