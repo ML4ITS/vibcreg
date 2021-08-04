@@ -1,5 +1,3 @@
-# The yaml format follows W&B's: (https://docs.wandb.ai/guides/track/config)
-
 # GPU
 device_ids:
   - 0

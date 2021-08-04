@@ -15,10 +15,10 @@ class MemoryBank(object):
     based on MoCo's memory bank.
     First-in-First-out system.
     """
-    def __init__(self, size_mb, k_msf, device_ids, feature_size, batch_size):
+    def __init__(self, size_mb, k_msf, device_ids, feature_size_msf, batch_size):
         self.size_mb = size_mb  # memory bank size; 4096 is used in the MoCo paper.
         self.k = k_msf  # a number of nearest neighbors used; 5 is recommended in the MSF paper.
-        self.feature_size = feature_size
+        self.feature_size = feature_size_msf
         self.batch_size = batch_size
 
         self.bank = self._initialize_memory_bank().to(device_ids[0])  # (size_mb * feature_size)
@@ -44,10 +44,10 @@ class MemoryBank(object):
 
 
 class AddinMSF(object):
-    def __init__(self, memory_bank: MemoryBank, tau_target_net: float = 0.99, use_EMAN: bool = False):
+    def __init__(self, memory_bank: MemoryBank, tau_msf: float = 0.99, use_EMAN_msf: bool = False):
         self.memory_bank = memory_bank
-        self.tau = tau_target_net  # 0.99 is used in the MSF paper.
-        self.use_EMAN = use_EMAN
+        self.tau = tau_msf  # 0.99 is used in the MSF paper.
+        self.use_EMAN = use_EMAN_msf
 
         self.target_net = None
 

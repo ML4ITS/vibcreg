@@ -24,3 +24,17 @@ def vibcreg_invariance_loss(z1: Tensor, z2: Tensor, loss_type_vibcreg: str) -> T
     elif loss_type_vibcreg == 'hybrid':
         sim_loss = 0.5 * mse_loss(z1, z2) + 0.5 * cos_sim_loss(z1, z2)
     return sim_loss
+
+
+def simsiam_cos_sim_loss(p, z):
+    """
+    :param p: output from `predictor`
+    :param z: output from `projector`
+
+    SimSiam's cosine similarity loss.
+    """
+    z.detach()  # stop gradient
+
+    p = F.normalize(p, dim=1)
+    z = F.normalize(z, dim=1)
+    return 1 - (p * z).sum(dim=1).mean()

@@ -1,5 +1,6 @@
 import os
 from torch.optim import AdamW
+from vibcreg.backbone.resnet import ResNet1D
 from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
 from vibcreg.wrapper.model_building_wrapper import build_model
 from vibcreg.wrapper.run_wrapper import run_ssl_for_rl
@@ -12,7 +13,8 @@ cf = load_hyper_param_settings("./examples/configs/example_ptbxl_vibcreg.yaml") 
 train_data_loader, val_data_loader, test_data_loader = build_data_pipeline(cf)
 
 # build model (encoder + SSL framework)
-rl_model, rl_util = build_model(cf)
+encoder = ResNet1D(**cf)
+rl_model, rl_util = build_model(cf, encoder)
 
 # optimizer
 optimizer = AdamW(rl_model.parameters(), lr=cf["lr"], weight_decay=cf["weight_decay"])

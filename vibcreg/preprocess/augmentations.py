@@ -20,7 +20,7 @@ class Augmentations(object):
         for i in range(len(x_views)):
             seq_len = x_views[i].shape[-1]
             subseq_len = self.subseq_len
-            rand_t = np.random.randint(0, seq_len - subseq_len, size=1)[0]
+            rand_t = np.random.randint(0, seq_len - subseq_len + 1, size=1)[0]
             subx = x_views[i][:, rand_t: rand_t + subseq_len]  # (subseq_len)
             subx_views.append(subx)
 

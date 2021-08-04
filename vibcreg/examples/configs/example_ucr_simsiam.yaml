@@ -35,22 +35,19 @@ norm_layer_type_enc: "BatchNorm"
 dropout_rate_enc: 0.
 
 # framework
-proj_hid_vibcreg: 4096
-proj_out_vibcreg: 4096
-norm_layer_type_proj_vibcreg: "BatchNorm"
-add_IterN_at_the_last_in_proj_vibcreg: True
-weight_on_msfLoss: 0.
-use_predictor_msf: False
+proj_hid_simsiam: 2048
+proj_out_simsiam: 2048
+norm_layer_type_proj_simsiam: "BatchNorm"
+pred_hid_simsiam: 512
+pred_out_simsiam: 2048
+norm_layer_type_pred_simsiam: "BatchNorm"
 
 # framework loss
-lambda_vibcreg: 25.
-mu_vibcreg: 25.
-nu_vibcreg: 200.
-loss_type_vibcreg: "mse"
+#
 
 # framework utility (belongs to the abstract class: `Utility_SSL`)
 n_epochs: 100
-framework_type: "vibcreg"
+framework_type: "simsiam"
 use_wandb: True
 project_name: "RLonUCR"
 n_neighbors_kNN: 5

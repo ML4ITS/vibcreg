@@ -4,13 +4,10 @@ VIbCReg: Variance Invariance better-Covariance Regularization
 Reference:
 [1] A. Bardes et al., 2021, "VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning"
 """
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import relu
 
 import wandb
-import numpy as np
 
 from vibcreg.backbone.resnet import ResNet1D, normalization_layer
 from vibcreg.frameworks.framework_util_skeleton import Utility_SSL
@@ -103,12 +100,16 @@ class Utility_VIbCReg(Utility_SSL):
 
         self.amsf = None
         self.use_predictor_msf = None
+        self.create_msf(**kwargs)
 
-    def create_msf(self, size_mb, k_msf, device_ids, feature_size, batch_size, tau_target_net=0.99, use_EMAN=False, use_predictor_msf=False):
-        memory_bank = MemoryBank(size_mb, k_msf, device_ids, feature_size, batch_size)
-        self.amsf = AddinMSF(memory_bank, tau_target_net, use_EMAN)
-        self.amsf.create_target_net(self.rl_model)
-        self.use_predictor_msf = use_predictor_msf
+    def create_msf(self, size_mb, k_msf, device_ids, batch_size, tau_msf=0.99, use_EMAN_msf=False, use_predictor_msf=False, **kwargs):
+        weight_on_msfLoss = kwargs.get("weight_on_msfLoss", None)
+        proj_out_vibcreg = kwargs.get("proj_out_vibcreg", None)
+        if weight_on_msfLoss:
+            memory_bank = MemoryBank(size_mb, k_msf, device_ids, feature_size_msf=proj_out_vibcreg, batch_size=batch_size)
+            self.amsf = AddinMSF(memory_bank, tau_msf, use_EMAN_msf)
+            self.amsf.create_target_net(self.rl_model)
+            self.use_predictor_msf = use_predictor_msf
 
     def wandb_watch(self, log_freq_watch=1000):
         if self.use_wandb:

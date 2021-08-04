@@ -74,7 +74,6 @@ class Utility_SSL(ABC):
 
     def init_wandb(self, cf):
         dataset_name = cf["dataset_name"]
-        print(dataset_name)
         matplotlib.use('Agg')  # eliminates the issue of 'TclError: Can't find a usable tk.tcl in the following directories:' when using `matplotlib`.
 
         # set `run_name`
@@ -130,6 +129,9 @@ class Utility_SSL(ABC):
 
     @abstractmethod
     def representation_learning(self, data_loader, optimizer, status):
+        """
+        :param status: train / validate / test
+        """
         pass
 
     @torch.no_grad()
