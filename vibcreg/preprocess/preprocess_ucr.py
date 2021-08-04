@@ -6,7 +6,7 @@ import tarfile
 
 import numpy as np
 import pandas as pd
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
 import gdown
 
@@ -43,7 +43,7 @@ class DatasetImporter(object):
     """
     def __init__(self, ucr_dataset_name: str, train_data_ratio: int = 0.8, test_data_ratio: int = 0.2, train_random_seed: int = 0, test_random_seed: int = 0, **kwargs):
         """
-        :param ucr_dataset_name: e.g., "Crop"
+        :param ucr_dataset_name: e.g., "ElectricDevices"
         :param train_data_ratio: 0.8 means 80% of a dataset
         :param test_data_ratio: 0.2 means 20% of a dataset
         :param train_random_seed:
@@ -85,9 +85,10 @@ class UCRDataset(Dataset):
         :param used_augmentations: e.g., ["RC", "AmpR", "Vshift"]
         :param data_scaling: whether to scale input data.
         """
+        super().__init__()
         self.kind = kind
         self.augs = augs
-        self.used_augmentations = used_augmentations
+        self.used_augmentations = used_augmentations if kind == "train" else []
         self.data_scaling = data_scaling
 
         if kind == "train":
@@ -154,6 +155,7 @@ class UCRDataset(Dataset):
 if __name__ == "__main__":
     import os
     import matplotlib.pyplot as plt
+    from torch.utils.data import DataLoader
     os.chdir("../")
 
     # data pipeline

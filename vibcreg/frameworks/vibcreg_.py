@@ -161,9 +161,5 @@ class Utility_VIbCReg(Utility_SSL):
                 wandb.log({'global_step': self.global_step, 'sim_loss_val': sim_loss, 'var_loss_val': var_loss, 'cov_loss_val': cov_loss})
                 wandb.log({'global_step': self.global_step, 'msf_loss_val': msf_loss}) if self.weight_on_msfLoss else None
 
-        # compute kNN accuracy during validation
-        if self.use_wandb and (status == "validate"):
-            self.log_kNN_acc_during_validation(data_loader)  # `val_data_loader` is fed.
-
         return loss / step
 

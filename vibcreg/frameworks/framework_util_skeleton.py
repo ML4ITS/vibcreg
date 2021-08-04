@@ -15,18 +15,19 @@ import torch.nn.functional as F
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.manifold import TSNE
+from sklearn.multioutput import MultiOutputClassifier
+from sklearn.metrics import f1_score
 
 from vibcreg.lr_scheduler.cosine_annealing_lr import CosineAnnealingLR
 
 
 class Utility_SSL(ABC):
     @abstractmethod
-    def __init__(self, rl_model, device_ids: list, ucr_dataset_name: str, batch_size=256, n_epochs=100, framework_type="vibcreg", weight_on_msfLoss=0.,
+    def __init__(self, rl_model, device_ids: list, batch_size=256, n_epochs=100, framework_type="vibcreg", weight_on_msfLoss=0.,
                  use_wandb=True, project_name="RLonUCR", run_name=None, n_neighbors_kNN=5, n_jobs_for_kNN=10, model_saving_epochs=(10, 100), **kwargs):
         """
         :param rl_model: instance of a SSL model
         :param device_ids: a list of gpu-device-ids.
-        :param ucr_dataset_name: one of the dataset name from the URC archive
         :param batch_size:
         :param n_epochs:
         :param framework_type:
@@ -40,7 +41,6 @@ class Utility_SSL(ABC):
         """
         self.rl_model = rl_model
         self.device_ids = device_ids
-        self.ucr_dataset_name = ucr_dataset_name
         self.device = device_ids[0]
         self.batch_size = batch_size
         self.n_epochs = n_epochs
@@ -75,11 +75,7 @@ class Utility_SSL(ABC):
     def init_wandb(self, config):
         matplotlib.use('Agg')  # eliminates the issue of 'TclError: Can't find a usable tk.tcl in the following directories:' when using `matplotlib`.
         if self.use_wandb:
-            run_name = f"{self.ucr_dataset_name}-{self.framework_type}"
-
-            if self.run_name:
-                run_name = f"{self.ucr_dataset_name}-{self.run_name}"
-
+            run_name = f"{self.framework_type}" if not self.run_name else f"{self.run_name}"
             self.wb = wandb.init(project=self.project_name, config=config, name=run_name)
         else:
             self.wb = None
@@ -124,8 +120,17 @@ class Utility_SSL(ABC):
         pass
 
     @torch.no_grad()
-    def validate(self, val_data_loader, optimizer):
+    def validate(self, val_data_loader, optimizer, dataset_name, **kwargs):
         val_loss = self.representation_learning(val_data_loader, optimizer, "validate")
+
+        if self.use_wandb:
+            if dataset_name == "UCR":
+                self.log_kNN_acc_during_validation(val_data_loader)
+            elif dataset_name == "PTB-XL":
+                self.log_macro_f1score_during_validation(val_data_loader)
+            else:
+                raise ValueError("invalid `dataset_name`.")
+
         return val_loss
 
     @torch.no_grad()
@@ -155,6 +160,36 @@ class Utility_SSL(ABC):
         acc = accuracy_score(labels, pred_labels)
         wandb.log({'epoch': self.epoch, 'kNN_acc': acc})
 
+    @torch.no_grad()
+    def log_macro_f1score_during_validation(self, val_data_loader, min_n_labels=10):
+        """
+        computes kNN-macro-F1-score on the validation dataset.
+        In computing the f1-score, classes that have less than `min_n_labels` are not considered.
+        """
+        self.rl_model.eval()
+
+        subxs = torch.tensor([])
+        labels = torch.tensor([])
+        for subx_view1, subx_view2, label in val_data_loader:  # subx: (batch * n_channels * subseq_len)
+            subxs = torch.cat((subxs, subx_view1), dim=0)
+            labels = torch.cat((labels, label), dim=0)
+
+        y = self.rl_model.module.encoder(subxs.to(self.device)).detach().cpu()
+
+        model = KNeighborsClassifier(self.n_neighbors_kNN)
+        multi_target_model = MultiOutputClassifier(model, n_jobs=self.n_jobs_for_kNN)
+        multi_target_model.fit(y, labels)
+        pred_labels = multi_target_model.predict(y)
+        n_classes = labels.shape[-1]
+        metric = 0.
+        count = 0
+        for i in range(n_classes):
+            if (labels[:, i]).sum() >= min_n_labels:  # consider `labels[:,i]` that contains at least one `True` only.
+                metric += f1_score(labels[:, i], pred_labels[:, i], average='macro', zero_division=1)
+                count += 1
+        metric /= count
+        wandb.log({'epoch': self.epoch, 'macro_f1_score': metric})
+
     def save_checkpoint(self, epoch, optimizer, train_loss, val_loss):
         model_saving_path = "./checkpoints/frameworks/checkpoint-{}-ep_{}.pth"
 
@@ -167,18 +202,38 @@ class Utility_SSL(ABC):
                         }, model_saving_path.format(self.framework_type, epoch))
 
     @torch.no_grad()
-    def get_batch_of_representations(self, test_data_loader):
+    def get_batch_of_representations(self, test_data_loader, dataset_name, **kwargs):
         encoder = self.rl_model.module.encoder
         encoder.eval()
 
-        ys = torch.tensor([])
-        labels = torch.tensor([])
-        for subx_view1, subx_view2, label in test_data_loader:  # subx: (batch * 1 * subseq_len)
-            y = encoder(subx_view1.to(self.device)).to('cpu')  # (batch_size * feature_size)
-            ys = torch.cat((ys, y), dim=0)
-            labels = torch.cat((labels, label.to('cpu')), dim=0)
-        self.ys = ys.numpy()
-        self.labels = labels.numpy().reshape(-1)
+        if dataset_name == "UCR":
+            ys = torch.tensor([])
+            labels = torch.tensor([])
+            for subx_view1, subx_view2, label in test_data_loader:  # subx: (batch * 1 * subseq_len)
+                y = encoder(subx_view1.to(self.device)).to('cpu')  # (batch_size * feature_size)
+                ys = torch.cat((ys, y), dim=0)
+                labels = torch.cat((labels, label.to('cpu')), dim=0)
+            self.ys = ys.numpy()
+            self.labels = labels.numpy().reshape(-1)
+
+        elif dataset_name == "PTB-XL":
+            NORM_idx = test_data_loader.dataset.label_encoder.abb2idx['NORM']
+            SR_idx = test_data_loader.dataset.label_encoder.abb2idx['SR']
+            ys = torch.tensor([])
+            isNORMs = torch.tensor([])
+            for subx_view1, subx_view2, label in test_data_loader:  # subx: (batch * 12 * subseq_len); label: (batch * 71); 71 unique classes.
+                y = encoder(subx_view1.to(self.device))  # (batch_size * feature_size)
+                ys = torch.cat((ys, y.to('cpu')), dim=0)
+
+                target = torch.zeros(71)  # 71 sub-classes
+                target[NORM_idx], target[SR_idx] = 1, 1
+                isNORM = ((label == target).float().mean(dim=1) == 1).float()
+                isNORMs = torch.cat((isNORMs, isNORM))
+            self.ys = ys.numpy()
+            self.labels = isNORMs.numpy()  # classes are divided as 1) abnormal(class:0), 2) normal(class:1)
+
+        else:
+            raise ValueError("invalid `dataset_name`.")
 
     def log_feature_histogram(self, n_samples=1000):
         """
@@ -204,9 +259,9 @@ class Utility_SSL(ABC):
             return None
 
         # run t-SNE
-        z_embedded = TSNE(n_components=2, random_state=1).fit_transform(self.ys[:n_samples, :])
+        y_embedded = TSNE(n_components=2, random_state=1).fit_transform(self.ys[:n_samples, :])
         plt.figure(figsize=(5, 5))
-        plt.scatter(z_embedded[:, 0], z_embedded[:, 1], alpha=0.5, c=self.labels[:n_samples], cmap="nipy_spectral")
+        plt.scatter(y_embedded[:, 0], y_embedded[:, 1], alpha=0.5, c=self.labels[:n_samples], cmap="nipy_spectral")
         plt.tight_layout()
         wandb.log({f't-SNE analysis-ep_{self.epoch}': [wandb.Image(plt, caption=f'')]})
         plt.close()
