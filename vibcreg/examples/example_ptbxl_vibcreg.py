@@ -19,7 +19,7 @@ optimizer = AdamW(rl_model.parameters(), lr=cf["lr"], weight_decay=cf["weight_de
 rl_util.setup_lr_scheduler(optimizer, kind="CosineAnnealingLR", train_dataset_size=train_data_loader.dataset.__len__())
 
 # W&B
-rl_util.init_wandb(config=cf)
+rl_util.init_wandb(cf)
 rl_util.wandb_watch()
 
 # run SSL for RL
