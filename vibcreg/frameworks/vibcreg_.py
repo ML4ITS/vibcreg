@@ -22,12 +22,12 @@ from vibcreg.losses.invariance_loss import vibcreg_invariance_loss
 
 
 class Projector(nn.Module):
-    def __init__(self, out_channels_backbone, proj_hid, proj_out, norm_layer_type_proj, add_IterN_at_the_last_in_proj_vibcreg):
+    def __init__(self, last_channels_enc, proj_hid, proj_out, norm_layer_type_proj, add_IterN_at_the_last_in_proj_vibcreg):
         super().__init__()
         self.add_IterN_at_the_last_in_proj_vibcreg = add_IterN_at_the_last_in_proj_vibcreg
 
         # define layers
-        self.linear1 = nn.Linear(out_channels_backbone, proj_hid)
+        self.linear1 = nn.Linear(last_channels_enc, proj_hid)
         self.nl1 = normalization_layer(norm_layer_type_proj, proj_hid, dim=2)
         self.linear2 = nn.Linear(proj_hid, proj_hid)
         self.nl2 = normalization_layer(norm_layer_type_proj, proj_hid, dim=2)
@@ -62,7 +62,7 @@ class Predictor(nn.Module):
 
 
 class VIbCReg(nn.Module):
-    def __init__(self, encoder: ResNet1D, out_channels_backbone: int,
+    def __init__(self, encoder: ResNet1D, last_channels_enc: int,
                  proj_hid_vibcreg: int = 4096, proj_out_vibcreg: int = 4096, norm_layer_type_proj_vibcreg: str = "BatchNorm", add_IterN_at_the_last_in_proj_vibcreg: bool = True,
                  weight_on_msfLoss: float = 0., use_predictor_msf: bool = False, **kwargs):
         super().__init__()
@@ -70,7 +70,7 @@ class VIbCReg(nn.Module):
         self.weight_on_msfLoss = weight_on_msfLoss
         self.use_predictor_msf = use_predictor_msf
 
-        self.projector = Projector(out_channels_backbone, proj_hid_vibcreg, proj_out_vibcreg, norm_layer_type_proj_vibcreg, add_IterN_at_the_last_in_proj_vibcreg)
+        self.projector = Projector(last_channels_enc, proj_hid_vibcreg, proj_out_vibcreg, norm_layer_type_proj_vibcreg, add_IterN_at_the_last_in_proj_vibcreg)
         if self.weight_on_msfLoss and self.use_predictor_msf:
             self.predictor = Predictor(proj_out_vibcreg)
 

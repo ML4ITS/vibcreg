@@ -22,7 +22,7 @@ from vibcreg.lr_scheduler.cosine_annealing_lr import CosineAnnealingLR
 class Utility_SSL(ABC):
     @abstractmethod
     def __init__(self, rl_model, device_ids: list, ucr_dataset_name: str, batch_size=256, n_epochs=100, framework_type="vibcreg", weight_on_msfLoss=0.,
-                 use_wandb=True, project_name="RLonUCR", run_name=None, n_neighbors_kNN=5, n_jobs_for_kNN=10, saving_epochs=[10, 100], **kwargs):
+                 use_wandb=True, project_name="RLonUCR", run_name=None, n_neighbors_kNN=5, n_jobs_for_kNN=10, model_saving_epochs=(10, 100), **kwargs):
         """
         :param rl_model: instance of a SSL model
         :param device_ids: a list of gpu-device-ids.
@@ -33,10 +33,10 @@ class Utility_SSL(ABC):
         :param weight_on_msfLoss:
         :param use_wandb:
         :param project_name: a project name in W&B.
-        :param run_name: a run name in the W&B project.
+        :param run_name: a run name in the W&B project. If None, it's automatically set.
         :param n_neighbors_kNN: n_neighbors for kNN.
         :param n_jobs_for_kNN: n_cpus for kNN.
-        :param saving_epochs: a list of epochs when the model is saved.
+        :param model_saving_epochs: a list of epochs when the model is saved.
         """
         self.rl_model = rl_model
         self.device_ids = device_ids
@@ -51,7 +51,7 @@ class Utility_SSL(ABC):
         self.run_name = run_name
         self.n_neighbors_kNN = n_neighbors_kNN
         self.n_jobs_for_kNN = n_jobs_for_kNN
-        self.saving_epochs = saving_epochs
+        self.model_saving_epochs = model_saving_epochs
 
         # params
         self.epoch = None
@@ -156,7 +156,7 @@ class Utility_SSL(ABC):
     def save_checkpoint(self, epoch, optimizer, train_loss, val_loss):
         model_saving_path = "./checkpoints/frameworks/checkpoint-{}-ep_{}.pth"
 
-        if epoch in self.saving_epochs:
+        if epoch in self.model_saving_epochs:
             torch.save({'epoch': epoch,
                         'model_state_dict': self.rl_model.module.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),

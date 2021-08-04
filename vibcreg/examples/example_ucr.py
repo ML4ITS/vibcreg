@@ -12,7 +12,7 @@ from vibcreg.frameworks.vibcreg_ import VIbCReg, Utility_VIbCReg
 
 os.chdir("../")
 
-# load hyper-parameters
+# load hyper-parameter settings
 stream = open("./examples/configs/example_ucr.yaml", 'r')
 cf = yaml.load(stream, Loader=yaml.FullLoader)  # config
 
@@ -26,7 +26,7 @@ test_data_loader = DataLoader(test_dataset, cf["batch_size"], num_workers=cf["nu
 
 # framework
 encoder = ResNet1D(cf["in_channels_enc"])  # backbone-encoder
-rl_model = nn.DataParallel(VIbCReg(encoder, encoder.out_channels_backbone, **cf))
+rl_model = nn.DataParallel(VIbCReg(encoder, encoder.last_channels_enc, **cf), device_ids=cf["device_ids"])
 rl_util = Utility_VIbCReg(rl_model=rl_model, **cf)
 
 # optimizer

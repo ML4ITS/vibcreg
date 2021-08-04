@@ -108,31 +108,31 @@ class ResidualBlock(nn.Module):
 
 
 class ResNet1D(nn.Module):
-    def __init__(self, in_channels, n_blocks=[1, 1, 1, 1], out_channels=64, kernel_size=3, norm_layer_type="BatchNorm", dropout_rate=0.):
+    def __init__(self, in_channels_enc, n_blocks_enc=(1, 1, 1, 1), out_channels_enc=64, kernel_size_enc=3, norm_layer_type_enc="BatchNorm", dropout_rate_enc=0.):
         """
-        :param in_channels: dimension of an input; e.g., 1 for the UCR datasets, and 12 for the PTB-XL.
-        :param n_blocks: e.g., [3, 4, 6, 3]; The same residual block is repeated 3 times -> dimension increase -> another same residual block is repeated 4  times -> ...
-        :param out_channels: dimension of an output after the first block; the dimension automatically doubles after every set of the same residual blocks while the input dimension decreases by double.
-        :param kernel_size: kernel size in residual blocks
-        :param norm_layer_type: type of the normalization layers
-        :param dropout_rate: rate for `Dropout`. If 0, `Dropout` is not used.
+        :param in_channels_enc: dimension of an input; e.g., 1 for the UCR datasets, and 12 for the PTB-XL.
+        :param n_blocks_enc: e.g., [3, 4, 6, 3]; The same residual block is repeated 3 times -> dimension increase -> another same residual block is repeated 4  times -> ...
+        :param out_channels_enc: dimension of an output after the first block; the dimension automatically doubles after every set of the same residual blocks while the input dimension decreases by double.
+        :param kernel_size_enc: kernel size in residual blocks
+        :param norm_layer_type_enc: type of the normalization layers
+        :param dropout_rate_enc: rate for `Dropout`. If 0, `Dropout` is not used.
         """
         super().__init__()
 
         # define blocks
-        self.first_block = FirstBlock(in_channels, out_channels, 7, 2, norm_layer_type, dropout_rate)
+        self.first_block = FirstBlock(in_channels_enc, out_channels_enc, 7, 2, norm_layer_type_enc, dropout_rate_enc)
 
         self.res_blocks = nn.ModuleList()
-        in_channels = out_channels
-        for i, n_block in enumerate(n_blocks):
+        in_channels_enc = out_channels_enc
+        for i, n_block in enumerate(n_blocks_enc):
             for j in range(n_block):
                 stride = 2 if ((i != 0) and (j == 0)) else 1
                 if (i != 0) and (j == 0):
-                    out_channels = in_channels * 2
-                self.res_blocks.append(ResidualBlock(in_channels, out_channels, kernel_size, stride, norm_layer_type, dropout_rate))
-                in_channels = out_channels
+                    out_channels_enc = in_channels_enc * 2
+                self.res_blocks.append(ResidualBlock(in_channels_enc, out_channels_enc, kernel_size_enc, stride, norm_layer_type_enc, dropout_rate_enc))
+                in_channels_enc = out_channels_enc
 
-        self.out_channels_backbone = in_channels
+        self.last_channels_enc = in_channels_enc
 
         # define global average pooling layer
         self.global_avgpool = nn.AdaptiveAvgPool1d(1)
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     # build a model
     resnet1d = ResNet1D(in_channels=1)
     print("# resnet1d:\n", resnet1d, end='\n\n')
-    print("out_channels_backbone: ", resnet1d.out_channels_backbone)
+    print("last_channels_enc: ", resnet1d.last_channels_enc)
 
     # generate a toy dataset
     batch_size = 32
