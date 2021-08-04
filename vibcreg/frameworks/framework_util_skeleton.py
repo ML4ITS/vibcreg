@@ -58,6 +58,8 @@ class Utility_SSL(ABC):
         self.global_step = 0
         self.lr_scheduler = None
         self.wb = None
+        self.ys = None
+        self.labels = None
 
     def update_epoch(self, epoch):
         self.epoch = epoch
@@ -175,7 +177,7 @@ class Utility_SSL(ABC):
             y = encoder(subx_view1.to(self.device)).to('cpu')  # (batch_size * feature_size)
             ys = torch.cat((ys, y), dim=0)
             labels = torch.cat((labels, label.to('cpu')), dim=0)
-        self.zs = ys.numpy()
+        self.ys = ys.numpy()
         self.labels = labels.numpy().reshape(-1)
 
     def log_feature_histogram(self, n_samples=1000):
@@ -191,7 +193,7 @@ class Utility_SSL(ABC):
         a = a.ravel()
         for feature_idx, ax in enumerate(a):
             ax.set_title(f'{feature_idx + 1}-th')
-            ax.hist(self.zs[:n_samples, feature_idx], bins=100)
+            ax.hist(self.ys[:n_samples, feature_idx], bins=100)
         plt.tight_layout()
         wandb.log({f"Feature histogram-ep_{self.epoch}": [wandb.Image(f, caption=f'')]})
         plt.close()
@@ -202,7 +204,7 @@ class Utility_SSL(ABC):
             return None
 
         # run t-SNE
-        z_embedded = TSNE(n_components=2, random_state=1).fit_transform(self.zs[:n_samples, :])
+        z_embedded = TSNE(n_components=2, random_state=1).fit_transform(self.ys[:n_samples, :])
         plt.figure(figsize=(5, 5))
         plt.scatter(z_embedded[:, 0], z_embedded[:, 1], alpha=0.5, c=self.labels[:n_samples], cmap="nipy_spectral")
         plt.tight_layout()

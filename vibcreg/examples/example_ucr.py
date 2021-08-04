@@ -25,7 +25,7 @@ train_data_loader = DataLoader(train_dataset, cf["batch_size"], num_workers=cf["
 test_data_loader = DataLoader(test_dataset, cf["batch_size"], num_workers=cf["num_workers"], shuffle=True)
 
 # framework
-encoder = ResNet1D(cf["in_channels_enc"])  # backbone-encoder
+encoder = ResNet1D(**cf)  # backbone-encoder
 rl_model = nn.DataParallel(VIbCReg(encoder, encoder.last_channels_enc, **cf), device_ids=cf["device_ids"])
 rl_util = Utility_VIbCReg(rl_model=rl_model, **cf)
 

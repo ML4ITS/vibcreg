@@ -108,7 +108,7 @@ class ResidualBlock(nn.Module):
 
 
 class ResNet1D(nn.Module):
-    def __init__(self, in_channels_enc, n_blocks_enc=(1, 1, 1, 1), out_channels_enc=64, kernel_size_enc=3, norm_layer_type_enc="BatchNorm", dropout_rate_enc=0.):
+    def __init__(self, in_channels_enc, n_blocks_enc=(1, 1, 1, 1), out_channels_enc=64, kernel_size_enc=3, norm_layer_type_enc="BatchNorm", dropout_rate_enc=0., **kwargs):
         """
         :param in_channels_enc: dimension of an input; e.g., 1 for the UCR datasets, and 12 for the PTB-XL.
         :param n_blocks_enc: e.g., [3, 4, 6, 3]; The same residual block is repeated 3 times -> dimension increase -> another same residual block is repeated 4  times -> ...
