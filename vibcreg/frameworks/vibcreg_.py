@@ -111,12 +111,22 @@ class Utility_VIbCReg(Utility_SSL):
             self.amsf.create_target_net(self.rl_model)
             self.use_predictor_msf = use_predictor_msf
 
-    def wandb_watch(self, log_freq_watch=1000):
+    def wandb_watch(self):
         if self.use_wandb:
-            wandb.watch(self.rl_model.module.encoder, log_freq=log_freq_watch)
-            wandb.watch(self.rl_model.module.projector, log_freq=log_freq_watch)
+            wandb.watch(self.rl_model.module.encoder)
+            wandb.watch(self.rl_model.module.projector)
             if self.weight_on_msfLoss and self.use_predictor_msf:
-                wandb.watch(self.rl_model.module.predictor, log_freq=log_freq_watch)
+                wandb.watch(self.rl_model.module.predictor)
+
+    def status_log_per_iter(self, status, z, **kwargs):
+        sim_loss, var_loss, cov_loss, msf_loss = kwargs.get("sim_loss", None), kwargs.get("var_loss", None), kwargs.get("cov_loss", None), kwargs.get("msf_loss", None)
+        if self.use_wandb and (status == "train"):
+            wandb.log({'global_step': self.global_step, 'feature_comp_expr_metrics': self._feature_comp_expressiveness_metrics(z), 'feature_decorr_metrics': self._compute_feature_decorr_metrics(z)})
+            wandb.log({'global_step': self.global_step, 'sim_loss': sim_loss, 'var_loss': var_loss, 'cov_loss': cov_loss})
+            wandb.log({'global_step': self.global_step, 'msf_loss': msf_loss}) if self.weight_on_msfLoss else None
+        elif self.use_wandb and (status == "validate"):
+            wandb.log({'global_step': self.global_step, 'sim_loss_val': sim_loss, 'var_loss_val': var_loss, 'cov_loss_val': cov_loss})
+            wandb.log({'global_step': self.global_step, 'msf_loss_val': msf_loss}) if self.weight_on_msfLoss else None
 
     def representation_learning(self, data_loader, optimizer, status):
         """
@@ -135,6 +145,7 @@ class Utility_VIbCReg(Utility_SSL):
             cov_loss = vibcreg_cov_loss(z1, z2) if not self.use_vicreg_FD_loss else vicreg_cov_loss(z1, z2)  # FD loss
             L = self.lambda_vibcreg * sim_loss + self.mu_vibcreg * var_loss + self.nu_vibcreg * cov_loss
 
+            msf_loss = None
             if self.weight_on_msfLoss:
                 self.amsf.update_target_net(self.rl_model)
                 z1_target, _ = self.amsf.target_net(subx_view1.to(self.device), subx_view2.to(self.device))
@@ -148,19 +159,13 @@ class Utility_VIbCReg(Utility_SSL):
                 L.backward()
                 optimizer.step()
                 self.lr_scheduler.step()
+                self.global_step += 1
 
             loss += L.item()
             step += 1
 
             # status log
-            if self.use_wandb and (status == "train"):
-                self.global_step += 1
-                wandb.log({'global_step': self.global_step, 'feature_comp_expr_metrics': self._feature_comp_expressiveness_metrics(z1), 'feature_decorr_metrics': self._compute_feature_decorr_metrics(z1)})
-                wandb.log({'global_step': self.global_step, 'sim_loss': sim_loss, 'var_loss': var_loss, 'cov_loss': cov_loss})
-                wandb.log({'global_step': self.global_step, 'msf_loss': msf_loss}) if self.weight_on_msfLoss else None
-            elif self.use_wandb and (status == "validate"):
-                wandb.log({'global_step': self.global_step, 'sim_loss_val': sim_loss, 'var_loss_val': var_loss, 'cov_loss_val': cov_loss})
-                wandb.log({'global_step': self.global_step, 'msf_loss_val': msf_loss}) if self.weight_on_msfLoss else None
+            self.status_log_per_iter(status, z1, sim_loss=sim_loss, var_loss=var_loss, cov_loss=cov_loss, msf_loss=msf_loss)
 
         return loss / step
 

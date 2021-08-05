@@ -127,6 +127,17 @@ class Utility_SSL(ABC):
     def wandb_watch(self):
         pass
 
+    def status_log_per_iter(self, status, z, **kwargs):
+        """
+        :param status: "train" / "validate"
+        :param z: representation `z`
+        :param kwargs:
+        """
+        if self.use_wandb and (status == "train"):
+            wandb.log({'global_step': self.global_step, 'feature_comp_expr_metrics': self._feature_comp_expressiveness_metrics(z), 'feature_decorr_metrics': self._compute_feature_decorr_metrics(z)})
+        elif self.use_wandb and (status == "validate"):
+            pass
+
     @abstractmethod
     def representation_learning(self, data_loader, optimizer, status):
         """

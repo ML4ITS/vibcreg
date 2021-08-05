@@ -8,7 +8,7 @@ def barlow_twins_cross_correlation_mat(norm_z1: Tensor, norm_z2: Tensor) -> Tens
     return C
 
 
-def barlow_twins_loss(norm_z1: Tensor, norm_z2: Tensor, lambda_: int):
+def barlow_twins_loss(norm_z1: Tensor, norm_z2: Tensor, lambda_: float):
     C = barlow_twins_cross_correlation_mat(norm_z1, norm_z2)
 
     # loss

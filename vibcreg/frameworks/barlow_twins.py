@@ -56,10 +56,10 @@ class Utility_BarlowTwins(Utility_SSL):
         super(Utility_BarlowTwins, self).__init__(**kwargs)
         self.lambda_barlow = lambda_barlow
 
-    def wandb_watch(self, log_freq_watch=1000):
+    def wandb_watch(self):
         if self.use_wandb:
-            wandb.watch(self.rl_model.module.encoder, log_freq=log_freq_watch)
-            wandb.watch(self.rl_model.module.projector, log_freq=log_freq_watch)
+            wandb.watch(self.rl_model.module.encoder)
+            wandb.watch(self.rl_model.module.projector)
 
     @staticmethod
     def _batch_dim_wise_normalize_z(z):
@@ -90,16 +90,13 @@ class Utility_BarlowTwins(Utility_SSL):
                 L.backward()
                 optimizer.step()
                 self.lr_scheduler.step()
+                self.global_step += 1
 
             loss += L.item()
             step += 1
 
             # status log
-            if self.use_wandb and (status == "train"):
-                self.global_step += 1
-                wandb.log({'global_step': self.global_step, 'feature_comp_expr_metrics': self._feature_comp_expressiveness_metrics(z1), 'feature_decorr_metrics': self._compute_feature_decorr_metrics(z1)})
-            elif self.use_wandb and (status == "validate"):
-                pass
+            self.status_log_per_iter(status, z1)
 
         return loss / step
 

@@ -6,40 +6,12 @@
 [2] leaderj1001, "SimSiam", [github](https://github.com/leaderj1001/SimSiam)
 """
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import relu
 import wandb
 
 from vibcreg.backbone.resnet import ResNet1D, normalization_layer
 from vibcreg.frameworks.framework_util_skeleton import Utility_SSL
 from vibcreg.losses.invariance_loss import simsiam_cos_sim_loss
-
-
-class D(object):
-    """
-    Loss function: negative cosine similarity
-    D: distance
-    """
-    def __init__(self, loss_type):
-        self.loss_type = loss_type
-        self.mse = nn.MSELoss()
-
-    def __call__(self, p, z):
-        """
-        :param p: output from the `predictor, h`. (n x d)
-        :param z: output from the `encoder, f`. (n x d)
-        """
-        z.detach()  # stop gradient (sg)
-
-        # feature-wise l2-norm
-        if self.loss_type == 'cosine_similarity':
-            norm_p = F.normalize(p, dim=1)
-            norm_z = F.normalize(z, dim=1)
-            return - (norm_p * norm_z).sum(dim=1).mean()
-        elif self.loss_type == 'mse':
-            return self.mse(p, z)
-        else:
-            raise ValueError(f'unavailable loss_type: {self.loss_type}')
 
 
 class Projector(nn.Module):
@@ -93,11 +65,11 @@ class Utility_SimSiam(Utility_SSL):
     def __init__(self, **kwargs):
         super(Utility_SimSiam, self).__init__(**kwargs)
 
-    def wandb_watch(self, log_freq_watch=1000):
+    def wandb_watch(self):
         if self.use_wandb:
-            wandb.watch(self.rl_model.module.encoder, log_freq=log_freq_watch)
-            wandb.watch(self.rl_model.module.projector, log_freq=log_freq_watch)
-            wandb.watch(self.rl_model.module.predictor, log_freq=log_freq_watch)
+            wandb.watch(self.rl_model.module.encoder)
+            wandb.watch(self.rl_model.module.projector)
+            wandb.watch(self.rl_model.module.predictor)
 
     def representation_learning(self, data_loader, optimizer, status):
         """
@@ -119,15 +91,12 @@ class Utility_SimSiam(Utility_SSL):
                 L.backward()
                 optimizer.step()
                 self.lr_scheduler.step()
+                self.global_step += 1
 
             loss += L.item()
             step += 1
 
             # status log
-            if self.use_wandb and (status == "train"):
-                self.global_step += 1
-                wandb.log({'global_step': self.global_step, 'feature_comp_expr_metrics': self._feature_comp_expressiveness_metrics(z1), 'feature_decorr_metrics': self._compute_feature_decorr_metrics(z1)})
-            elif self.use_wandb and (status == "validate"):
-                pass
+            self.status_log_per_iter(status, z1)
 
         return loss / step

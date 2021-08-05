@@ -7,7 +7,7 @@ from vibcreg.wrapper.run_wrapper import run_ssl_for_rl
 os.chdir("../")  # move to the root dir
 
 # load hyper-parameter settings
-cf = load_hyper_param_settings("./examples/configs/example_ucr_vibcreg.yaml")  # config
+cf = load_hyper_param_settings("./configs/config_ucr_vibcreg.yaml")  # config
 
 # data pipeline
 train_data_loader, val_data_loader, test_data_loader = build_data_pipeline(cf)
