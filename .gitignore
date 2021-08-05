@@ -135,7 +135,8 @@ vibcreg/data/PTB-XL/*
 !vibcreg/data/PTB-XL/__init__.py
 
 # ignore saved model.
-vibcreg/checkpoints/
+vibcreg/checkpoints/frameworks/*
+!vibcreg/checkpoints/frameworks/__init__.py
 
 # wandb
 vibcreg/wandb/

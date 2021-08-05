@@ -125,7 +125,8 @@ class Utility_SSL(ABC):
 
     @abstractmethod
     def wandb_watch(self):
-        pass
+        if self.use_wandb:
+            wandb.watch(...)
 
     def status_log_per_iter(self, status, z, **kwargs):
         """
@@ -143,7 +144,30 @@ class Utility_SSL(ABC):
         """
         :param status: train / validate / test
         """
-        pass
+        self.rl_model.train() if status == "train" else self.rl_model.eval()
+
+        loss, step = 0., 0
+        for subx_view1, subx_view2, label in data_loader:  # subx: (batch * n_channels * subseq_len)
+            optimizer.zero_grad()
+
+            # loss
+            L = ...
+
+            # weight update
+            if status == "train":
+                L.backward()
+                optimizer.step()
+                self.lr_scheduler.step()
+                self.global_step += 1
+
+            loss += L.item()
+            step += 1
+
+            # status log
+            self.status_log_per_iter(status, ...)  # 2nd argument: representation
+
+        return loss / step
+
 
     @torch.no_grad()
     def validate(self, val_data_loader, optimizer, dataset_name, **kwargs):
