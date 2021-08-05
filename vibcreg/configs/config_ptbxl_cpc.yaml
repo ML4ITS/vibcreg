@@ -1,0 +1,68 @@
+# GPU
+device_ids:
+  - 0
+
+# data pipeline
+dataset_name: "PTB-XL"
+train_fold:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+val_fold: 9
+test_fold: 10
+train_downsampling_rate: 1.
+sampling_rate: 100  # [Hz]
+batch_size: 256
+num_workers: 0
+
+# augmentations
+subseq_len: 250  # 2.5s * 100Hz
+used_augmentations:
+  - ""
+AmpR_rate: 0.3
+Vshift_rate: 0.5
+
+# backbone-encoder
+downsampling_layers_cpc:
+  - 4
+  - 3
+  - 3
+  - 2
+enc_hid_channels_cpc: 512
+norm_layer_type_cpc: "BatchNorm"
+
+# framework
+max_pred_step: 4
+
+# framework loss
+#
+
+# framework utility (belongs to the abstract class: `Utility_SSL`)
+n_epochs: 100
+framework_type: "cpc"
+use_wandb: True
+project_name: "PTB-XL"
+n_neighbors_kNN: 5
+n_jobs_for_kNN: 10
+model_saving_epochs:
+  - 10
+  - 100
+
+# optimizer
+lr: 0.001
+weight_decay: 0.00001
+
+# misc
+tsne_analysis_log_epochs:
+  - 1
+  - 10
+  - 20
+  - 30
+  - 40
+  - 50
+  - 100

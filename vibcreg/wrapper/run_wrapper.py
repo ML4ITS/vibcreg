@@ -22,6 +22,8 @@ def run_ssl_for_rl(cf, train_data_loader, val_data_loader, test_data_loader, rl_
 
             if framework_type == "barlow_twins":
                 rl_util.log_cross_correlation_matrix(train_data_loader)
+            elif framework_type == "cpc":
+                rl_util.log_accuracy_cpc()
 
     test_loss = rl_util.test(test_data_loader, optimizer)
     rl_util.test_log(test_loss)

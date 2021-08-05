@@ -58,7 +58,7 @@ class Utility_SSL(ABC):
         self.global_step = 0
         self.lr_scheduler = None
         self.wb = None
-        self.ys = None
+        self.reprs = None
         self.labels = None
 
     def update_epoch(self, epoch):
@@ -147,6 +147,7 @@ class Utility_SSL(ABC):
 
     @torch.no_grad()
     def validate(self, val_data_loader, optimizer, dataset_name, **kwargs):
+        self.rl_model.eval()
         val_loss = self.representation_learning(val_data_loader, optimizer, "validate")
 
         if self.use_wandb:
@@ -164,25 +165,39 @@ class Utility_SSL(ABC):
         test_loss = self.representation_learning(test_data_loader, optimizer, "test")
         return test_loss
 
-    @torch.no_grad()
-    def log_kNN_acc_during_validation(self, val_data_loader):
-        """
-        Log kNN-accuracy on a validation dataset.
-        """
-        self.rl_model.eval()
-
+    @staticmethod
+    def _stack_val_data(val_data_loader):
         subxs = torch.tensor([])
         labels = torch.tensor([])
         for subx_view1, subx_view2, label in val_data_loader:  # subx: (batch * n_channels * subseq_len)
             subxs = torch.cat((subxs, subx_view1), dim=0)
             labels = torch.cat((labels, label), dim=0)
+        return subxs, labels
 
-        y = self.rl_model.module.encoder(subxs.to(self.device)).detach().cpu()
+    @abstractmethod
+    def _representation_for_validation(self, x):
+        """
+        :param x: input data
+
+        `representation` computed here is used for
+        - [UCR] the kNN accuracy during validation.
+        - [PTB-XL] macro F1 score during validation.
+        """
+        repr_ = self.rl_model.module.encoder(x.to(self.device)).detach().cpu()
+        return repr_
+
+    @torch.no_grad()
+    def log_kNN_acc_during_validation(self, val_data_loader):
+        """
+        Log kNN-accuracy on a validation dataset.
+        """
+        subxs, labels = self._stack_val_data(val_data_loader)
+        repr_ = self._representation_for_validation(subxs)
         labels = labels.view(-1)
 
         model = KNeighborsClassifier(self.n_neighbors_kNN, n_jobs=self.n_jobs_for_kNN)
-        model.fit(y, labels)
-        pred_labels = model.predict(y)
+        model.fit(repr_, labels)
+        pred_labels = model.predict(repr_)
         acc = accuracy_score(labels, pred_labels)
         wandb.log({'epoch': self.epoch, 'kNN_acc': acc})
 
@@ -192,20 +207,13 @@ class Utility_SSL(ABC):
         computes kNN-macro-F1-score on the validation dataset.
         In computing the f1-score, classes that have less than `min_n_labels` are not considered.
         """
-        self.rl_model.eval()
-
-        subxs = torch.tensor([])
-        labels = torch.tensor([])
-        for subx_view1, subx_view2, label in val_data_loader:  # subx: (batch * n_channels * subseq_len)
-            subxs = torch.cat((subxs, subx_view1), dim=0)
-            labels = torch.cat((labels, label), dim=0)
-
-        y = self.rl_model.module.encoder(subxs.to(self.device)).detach().cpu()
+        subxs, labels = self._stack_val_data(val_data_loader)
+        repr_ = self._representation_for_validation(subxs)
 
         model = KNeighborsClassifier(self.n_neighbors_kNN)
         multi_target_model = MultiOutputClassifier(model, n_jobs=self.n_jobs_for_kNN)
-        multi_target_model.fit(y, labels)
-        pred_labels = multi_target_model.predict(y)
+        multi_target_model.fit(repr_, labels)
+        pred_labels = multi_target_model.predict(repr_)
         n_classes = labels.shape[-1]
         metric = 0.
         count = 0
@@ -229,33 +237,32 @@ class Utility_SSL(ABC):
 
     @torch.no_grad()
     def get_batch_of_representations(self, test_data_loader, dataset_name, **kwargs):
-        encoder = self.rl_model.module.encoder
-        encoder.eval()
+        self.rl_model.module.encoder.eval()
 
         if dataset_name == "UCR":
-            ys = torch.tensor([])
+            reprs = torch.tensor([])
             labels = torch.tensor([])
             for subx_view1, subx_view2, label in test_data_loader:  # subx: (batch * 1 * subseq_len)
-                y = encoder(subx_view1.to(self.device)).to('cpu')  # (batch_size * feature_size)
-                ys = torch.cat((ys, y), dim=0)
-                labels = torch.cat((labels, label.to('cpu')), dim=0)
-            self.ys = ys.numpy()
+                repr_ = self._representation_for_validation(subx_view1)
+                reprs = torch.cat((reprs, repr_), dim=0)
+                labels = torch.cat((labels, label.cpu()), dim=0)
+            self.reprs = reprs.numpy()
             self.labels = labels.numpy().reshape(-1)
 
         elif dataset_name == "PTB-XL":
             NORM_idx = test_data_loader.dataset.label_encoder.abb2idx['NORM']
             SR_idx = test_data_loader.dataset.label_encoder.abb2idx['SR']
-            ys = torch.tensor([])
+            reprs = torch.tensor([])
             isNORMs = torch.tensor([])
             for subx_view1, subx_view2, label in test_data_loader:  # subx: (batch * 12 * subseq_len); label: (batch * 71); 71 unique classes.
-                y = encoder(subx_view1.to(self.device))  # (batch_size * feature_size)
-                ys = torch.cat((ys, y.to('cpu')), dim=0)
+                repr_ = self._representation_for_validation(subx_view1)
+                reprs = torch.cat((reprs, repr_), dim=0)
 
                 target = torch.zeros(71)  # 71 sub-classes
                 target[NORM_idx], target[SR_idx] = 1, 1
                 isNORM = ((label == target).float().mean(dim=1) == 1).float()
                 isNORMs = torch.cat((isNORMs, isNORM))
-            self.ys = ys.numpy()
+            self.reprs = reprs.numpy()
             self.labels = isNORMs.numpy()  # classes are divided as 1) abnormal(class:0), 2) normal(class:1)
 
         else:
@@ -274,7 +281,7 @@ class Utility_SSL(ABC):
         a = a.ravel()
         for feature_idx, ax in enumerate(a):
             ax.set_title(f'{feature_idx + 1}-th')
-            ax.hist(self.ys[:n_samples, feature_idx], bins=100)
+            ax.hist(self.reprs[:n_samples, feature_idx], bins=100)
         plt.tight_layout()
         wandb.log({f"Feature histogram-ep_{self.epoch}": [wandb.Image(f, caption=f'')]})
         plt.close()
@@ -285,7 +292,7 @@ class Utility_SSL(ABC):
             return None
 
         # run t-SNE
-        y_embedded = TSNE(n_components=2, random_state=1).fit_transform(self.ys[:n_samples, :])
+        y_embedded = TSNE(n_components=2, random_state=1).fit_transform(self.reprs[:n_samples, :])
         plt.figure(figsize=(5, 5))
         plt.scatter(y_embedded[:, 0], y_embedded[:, 1], alpha=0.5, c=self.labels[:n_samples], cmap="nipy_spectral")
         plt.tight_layout()

@@ -18,10 +18,10 @@ from vibcreg.losses.barlow_twins_loss import barlow_twins_loss, barlow_twins_cro
 
 
 class Projector(nn.Module):
-    def __init__(self, out_channels_backbone, proj_hid, proj_out, norm_layer_type_proj):
+    def __init__(self, last_channels_enc, proj_hid, proj_out, norm_layer_type_proj):
         super().__init__()
         # define layers
-        self.linear1 = nn.Linear(out_channels_backbone, proj_hid)
+        self.linear1 = nn.Linear(last_channels_enc, proj_hid)
         self.nl1 = normalization_layer(norm_layer_type_proj, proj_hid, dim=2)
         self.linear2 = nn.Linear(proj_hid, proj_hid)
         self.nl2 = normalization_layer(norm_layer_type_proj, proj_hid, dim=2)
@@ -99,6 +99,9 @@ class Utility_BarlowTwins(Utility_SSL):
             self.status_log_per_iter(status, z1)
 
         return loss / step
+
+    def _representation_for_validation(self, x):
+        return super()._representation_for_validation(x)
 
     @torch.no_grad()
     def log_cross_correlation_matrix(self, data_loader, n_features=40):

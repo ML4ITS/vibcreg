@@ -102,7 +102,7 @@ class Utility_VIbCReg(Utility_SSL):
         self.use_predictor_msf = None
         self.create_msf(**kwargs)
 
-    def create_msf(self, size_mb, k_msf, device_ids, batch_size, tau_msf=0.99, use_EMAN_msf=False, use_predictor_msf=False, **kwargs):
+    def create_msf(self, device_ids, batch_size, size_mb=1024, k_msf=2, tau_msf=0.99, use_EMAN_msf=False, use_predictor_msf=False, **kwargs):
         weight_on_msfLoss = kwargs.get("weight_on_msfLoss", None)
         proj_out_vibcreg = kwargs.get("proj_out_vibcreg", None)
         if weight_on_msfLoss:
@@ -168,4 +168,7 @@ class Utility_VIbCReg(Utility_SSL):
             self.status_log_per_iter(status, z1, sim_loss=sim_loss, var_loss=var_loss, cov_loss=cov_loss, msf_loss=msf_loss)
 
         return loss / step
+
+    def _representation_for_validation(self, x):
+        return super()._representation_for_validation(x)
 

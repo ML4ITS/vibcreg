@@ -4,6 +4,8 @@ from vibcreg.frameworks.vibcreg_ import VIbCReg, Utility_VIbCReg
 from vibcreg.frameworks.barlow_twins import BarlowTwins, Utility_BarlowTwins
 from vibcreg.frameworks.simsiam import SimSiam, Utility_SimSiam
 from vibcreg.frameworks.rand_init import RandInit, Utility_RandInit
+from vibcreg.frameworks.cpc import CPC, Utility_CPC
+from vibcreg.frameworks.apc import APC, Utility_APC
 
 
 def build_model(cf, encoder):
@@ -29,6 +31,12 @@ def build_model(cf, encoder):
     elif framework_type == "simsiam":
         rl_model = nn.DataParallel(SimSiam(encoder, encoder.last_channels_enc, **cf), device_ids=cf["device_ids"])
         rl_util = Utility_SimSiam(rl_model=rl_model, **cf)
+    elif framework_type == "cpc":
+        rl_model = nn.DataParallel(CPC(encoder, **cf), device_ids=cf["device_ids"])
+        rl_util = Utility_CPC(rl_model=rl_model, **cf)
+    elif framework_type == "apc":
+        rl_model = nn.DataParallel(APC(encoder, **cf), device_ids=cf["device_ids"])
+        rl_util = Utility_APC(rl_model=rl_model, **cf)
     else:
         raise ValueError("invalid `framework_type`")
 

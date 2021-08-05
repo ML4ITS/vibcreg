@@ -63,7 +63,7 @@ class SimSiam(nn.Module):
 
 class Utility_SimSiam(Utility_SSL):
     def __init__(self, **kwargs):
-        super(Utility_SimSiam, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def wandb_watch(self):
         if self.use_wandb:
@@ -100,3 +100,6 @@ class Utility_SimSiam(Utility_SSL):
             self.status_log_per_iter(status, z1)
 
         return loss / step
+
+    def _representation_for_validation(self, x):
+        return super()._representation_for_validation(x)
