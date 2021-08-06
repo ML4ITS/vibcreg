@@ -1,19 +1,19 @@
 import os
 from torch.optim import AdamW
-from vibcreg.backbone.apc_encoder import APCEncoder
+from vibcreg.backbone.resnet import ResNet1D
 from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
 from vibcreg.wrapper.model_building_wrapper import build_model
 from vibcreg.wrapper.run_wrapper import run_ssl_for_rl
-os.chdir("../")  # move to the root dir
+os.chdir("../../")  # move to the root dir
 
 # load hyper-parameter settings
-cf = load_hyper_param_settings("./configs/config_ucr_apc.yaml")  # config
+cf = load_hyper_param_settings("./configs/config_ptbxl_vibcreg.yaml")  # config
 
 # data pipeline
 train_data_loader, val_data_loader, test_data_loader = build_data_pipeline(cf)
 
 # build model (encoder + SSL framework)
-encoder = APCEncoder(**cf)
+encoder = ResNet1D(**cf)
 rl_model, rl_util = build_model(cf, encoder)
 
 # optimizer
