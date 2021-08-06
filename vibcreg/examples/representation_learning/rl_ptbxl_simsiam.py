@@ -4,7 +4,7 @@ from vibcreg.backbone.resnet import ResNet1D
 from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
 from vibcreg.wrapper.model_building_wrapper import build_model
 from vibcreg.wrapper.run_wrapper import run_ssl_for_rl
-os.chdir("../")  # move to the root dir
+os.chdir("../../")  # move to the root dir
 
 # load hyper-parameter settings
 cf = load_hyper_param_settings("./configs/config_ptbxl_simsiam.yaml")  # config

@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import wandb
 
 import torch
@@ -7,9 +8,11 @@ from torch import relu
 from torch.utils.data import DataLoader
 
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import roc_curve, auc
 
 from vibcreg.normalization.iter_norm import IterNorm
 from vibcreg.lr_scheduler.cosine_annealing_lr import CosineAnnealingLR
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 from vibcreg.frameworks.vibcreg_ import VIbCReg
 from vibcreg.frameworks.barlow_twins import BarlowTwins
@@ -31,6 +34,7 @@ class WBLogger(object):
         self.best_val_loss = None
         self.best_test_loss = None
         self.best_test_acc = None
+        self.best_test_macroAUC = None
         self.count = 0
 
     @staticmethod
@@ -39,13 +43,20 @@ class WBLogger(object):
         wandb.log(log_content)
 
     @staticmethod
-    def main_log(epoch, train_loss, val_loss, test_loss, test_acc):
-        keys = ['epoch', 'train_loss', 'val_loss', 'test_loss', 'test_acc']
-        vals = [epoch, train_loss, val_loss, test_loss, test_acc]
+    def main_log(epoch, train_loss, val_loss, test_loss, **kwargs):
+        test_acc, test_macroAUC = kwargs.get("test_acc", None), kwargs.get("test_macroAUC", None)
+        keys = ['epoch', 'train_loss', 'val_loss', 'test_loss']
+        vals = [epoch, train_loss, val_loss, test_loss]
+        if test_acc:
+            keys = keys + ["test_acc"]
+            vals = vals + [test_acc]
+        if test_macroAUC:
+            keys = keys + ["test_macroAUC"]
+            vals = vals + [test_macroAUC]
         log_content = {k: v for k, v in zip(keys, vals)}
         wandb.log(log_content)
 
-    def main_summary(self, train_loss, val_loss, test_loss, test_acc):
+    def main_summary(self, train_loss, val_loss, test_loss, **kwargs):
         """
         Note that `wand.run.summary` must be run at every step along with `wand.log(..)`.
         """
@@ -53,24 +64,30 @@ class WBLogger(object):
             self.best_train_loss = train_loss
             self.best_val_loss = val_loss
             self.best_test_loss = test_loss
-            self.best_test_acc = test_acc
+            self.best_test_acc = kwargs.get("test_acc", None)
+            self.best_test_macroAUC = kwargs.get("test_macroAUC", None)
 
         if train_loss < self.best_train_loss:
             self.best_train_loss = train_loss
+            wandb.run.summary['train_loss'] = self.best_train_loss
 
         if val_loss < self.best_val_loss:
             self.best_val_loss = val_loss
+            wandb.run.summary['val_loss'] = self.best_val_loss
 
         if test_loss < self.best_test_loss:
             self.best_test_loss = test_loss
+            wandb.run.summary['test_loss'] = self.best_test_loss
 
-        if test_acc > self.best_test_acc:
+        test_acc = kwargs.get("test_acc")
+        if test_acc and (test_acc > self.best_test_acc):
             self.best_test_acc = test_acc
+            wandb.run.summary['test_acc'] = self.best_test_acc
 
-        wandb.run.summary['train_loss'] = self.best_train_loss
-        wandb.run.summary['val_loss'] = self.best_val_loss
-        wandb.run.summary['test_loss'] = self.best_test_loss
-        wandb.run.summary['test_acc'] = self.best_test_acc
+        test_macroAUC = kwargs.get("test_macroAUC")
+        if test_macroAUC and (test_macroAUC > self.best_test_macroAUC):
+            self.best_test_macroAUC = test_macroAUC
+            wandb.run.summary['test_macroAUC'] = self.best_test_acc
 
         self.count += 1
 
@@ -107,19 +124,19 @@ class Evaluator(object):
         self.val_data_loader = val_data_loader
         self.test_data_loader = test_data_loader
 
-        self.criterion = nn.CrossEntropyLoss()
-
         # params
-        self.fine_tune = self.set_fine_tune(cf["evaluation_type"])
+        self.fine_tune = self._set_fine_tune(cf["evaluation_type"])
+        self.criterion = self._set_criterion(cf["dataset_name"])
         self.encoder = None
         self.rl_model = None
         self.ar_cpc = None
         self.classifier = None
         self.wb = None
         self.lr_scheduler = None
+        self.epoch = None
 
     @staticmethod
-    def set_fine_tune(evaluation_type: str) -> bool:
+    def _set_fine_tune(evaluation_type: str) -> bool:
         if evaluation_type == "linear_evaluation":
             fine_tune = False
         elif evaluation_type == "fine_tuning_evaluation":
@@ -127,6 +144,16 @@ class Evaluator(object):
         else:
             raise ValueError("invalid `evaluation_type`")
         return fine_tune
+
+    @staticmethod
+    def _set_criterion(dataset_name: str):
+        if dataset_name == "UCR":
+            criterion = nn.CrossEntropyLoss()
+        elif dataset_name == "PTB-XL":
+            criterion = nn.BCEWithLogitsLoss()
+        else:
+            raise ValueError("Define `self.criterion` for your `dataset_name`.")
+        return criterion
 
     @staticmethod
     def _freeze(model):
@@ -161,6 +188,15 @@ class Evaluator(object):
             self.encoder = nn.DataParallel(self.encoder, device_ids=device_ids)
             self._freeze(self.encoder) if not self.fine_tune else None
 
+    def _get_n_unique_labels(self, dataset_name):
+        if dataset_name == "UCR":
+            n_unique_labels = len(np.unique(self.train_data_loader.dataset.Y))
+        elif dataset_name == "PTB-XL":
+            n_unique_labels = 71
+        else:
+            raise ValueError('define `n_unique_labels` for your `dataset_name`.')
+        return n_unique_labels
+
     def build_classifier(self, framework_type, device_ids, **kwargs):
         # compute `in_size` and `out_size` for the classifier
         if framework_type == 'cpc':
@@ -172,7 +208,7 @@ class Evaluator(object):
         else:
             # if `encoder` is `ResNet1D`.
             in_size = self.encoder.module.res_blocks[-1].conv_1x1.out_channels
-        out_size = len(np.unique(self.train_data_loader.dataset.Y))
+        out_size = self._get_n_unique_labels(kwargs.get("dataset_name"))
 
         # build a classifier
         self.classifier = nn.Sequential(nn.Linear(in_size, out_size))
@@ -189,7 +225,7 @@ class Evaluator(object):
             ep = int(loading_checkpoint_fname.split("ep_")[1].split(".pth")[0])
             run_name = run_name + f"-ep_{ep}"
 
-        if self.fine_tune:
+        if self.fine_tune and kwargs.get("train_data_ratio", None):
             train_data_ratio = kwargs.get("train_data_ratio", None) / 8 * 1000  # 8: 8 training folds; 1000 to make it percentage.
             run_name = run_name + f"-{train_data_ratio}"
 
@@ -266,7 +302,8 @@ class Evaluator(object):
         loss, step = 0., 0
         for subx_view1, subx_view2, label in data_loader:  # subx: (batch * n_channels * subseq_len)
             optimizer.zero_grad()
-            label = self.adjust_label(label)
+            if kwargs.get("dataset_name") == "UCR":
+                label = self.adjust_label(label)
 
             out = self._out_from_encoder_classifier(subx_view1.to(device), **kwargs)
 
@@ -312,6 +349,104 @@ class Evaluator(object):
 
         return test_acc / step
 
+    @torch.no_grad()
+    def _compute_test_macroAUC(self, framework_type, subseq_len, device_ids, **kwargs):
+        """
+        References:
+        [1] Scikit-learn, "Plot ROC curves for the multilabel problem" (https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc.html#sphx-glr-auto-examples-model-selection-plot-roc-py)
+        """
+        device = device_ids[0]
+
+        # Collect the entire test data
+        labels = torch.tensor([])  # (entire_batch * 71)
+        cls_preds = torch.tensor([])  # (entire_batch * 71)
+        for subx_view1, subx_view2, label in self.test_data_loader:  # subx: (batch * n_channels * subseq_len)
+            labels = torch.cat((labels, label))
+
+            if framework_type == 'cpc':
+                z = self.encoder(subx_view1.float().to(device))  # (batch * n_channels * reduced_seq_len)
+                out = z.mean(dim=2)  # (batch * n_channels)
+                out = self.classifier(out).cpu().detach()  # (batch * 71)
+                minibatch_cls_pred = torch.sigmoid(out)
+            else:
+                # averaged classification prediction
+                i = 0
+                minibatch_cls_preds = torch.tensor([])  # (n_slides, batch * 71)
+                while subx_view1[:, :, i:i + subseq_len].shape[-1] == subseq_len:
+                    subx = subx_view1[:, :, i:i + subseq_len].float()  # (batch * 12 * subseq_len)
+                    z = self.encoder(subx.to(device))  # (batch * feature_size)
+                    out = self.classifier(z).cpu().detach()  # (batch * 71)
+                    out = torch.sigmoid(out)  # (batch * 71)
+                    out = out.unsqueeze(dim=0)  # (1 * batch * 71)
+                    minibatch_cls_preds = torch.cat((minibatch_cls_preds, out))  # (n_slides * batch * 71)
+                    i += subseq_len
+                minibatch_cls_pred = minibatch_cls_preds.mean(dim=0)  # (batch * 71)
+            cls_preds = torch.cat((cls_preds, minibatch_cls_pred))  # (entire_batch * 71)
+
+        # Compute Macro-AUC
+        # - compute ROC curve and ROC area for each class
+        fpr = dict()  # false positive rate
+        tpr = dict()  # true positive rate
+        roc_auc = dict()
+        n_classes = labels.shape[-1]
+        for i in range(n_classes):
+            fpr[i], tpr[i], _ = roc_curve(labels[:, i], cls_preds[:, i])
+            roc_auc[i] = auc(fpr[i], tpr[i])
+
+        # - first aggregate all false positive rates
+        all_fpr = np.unique(np.concatenate([fpr[i] for i in range(n_classes)]))
+
+        # - then interpolate all ROC curves at this points
+        mean_tpr = np.zeros_like(all_fpr)
+        for i in range(n_classes):
+            mean_tpr += np.interp(all_fpr, fpr[i], tpr[i])
+
+        # - finally average it and compute AUC
+        mean_tpr /= n_classes
+
+        fpr["macro"] = all_fpr
+        tpr["macro"] = mean_tpr
+        roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
+
+        # confusion matrix
+        self._log_confusion_matrix(labels, cls_preds, **kwargs)
+        return roc_auc["macro"]
+
+    def _log_confusion_matrix(self, y_test, y_pred, use_wandb, tsne_analysis_log_epochs, **kwargs):
+        """
+        [1] Stackoverflow, https://stackoverflow.com/questions/62722416/plot-confusion-matrix-for-multilabel-classifcation-python
+        """
+        if not use_wandb:
+            return None
+        if self.epoch not in tsne_analysis_log_epochs:
+            return None
+
+        y_pred = np.round(y_pred)  # i.e., threshold = 0.5
+        n_classes = y_test.shape[-1]
+
+        y_test = np.abs(1 - y_test)  # to make 0 False and 1 True.
+        y_pred = np.abs(1 - y_pred)
+
+        f, axes = plt.subplots(round(n_classes / 8), 8, figsize=(25, 15))
+        axes = axes.ravel()
+        for i in range(n_classes):
+            disp = ConfusionMatrixDisplay(confusion_matrix(y_test[:, i], y_pred[:, i]), display_labels=[0, i])
+            disp.plot(ax=axes[i], values_format='.4g')
+            disp.ax_.set_title(f'class {i}')
+            if i < 10:
+                disp.ax_.set_xlabel('')
+            if i % 5 != 0:
+                disp.ax_.set_ylabel('')
+            disp.im_.colorbar.remove()
+            disp.ax_.set_xticks([])
+            disp.ax_.set_yticks([])
+
+        plt.subplots_adjust(wspace=0.10, hspace=0.5)
+        f.colorbar(disp.im_, ax=axes)
+        plt.suptitle(f"epoch: {self.epoch}")
+        wandb.log({f'confusion_mat-ep_{self.epoch}': plt})
+        plt.close()
+
     @staticmethod
     def _enable_bn_stat_update_only(model):
         """
@@ -320,13 +455,16 @@ class Evaluator(object):
         for child in get_children(model):
             child.training = True if isinstance(child, nn.BatchNorm1d) or isinstance(child, nn.BatchNorm2d) or isinstance(child, IterNorm) else False
 
-    def fit(self, optimizer, n_epochs_ev: dict, evaluation_type: str, use_wandb: bool, **kwargs):
+    def fit(self, optimizer, n_epochs_ev: dict, evaluation_type: str, **kwargs):
+        dataset_name = kwargs.get("dataset_name", None)
         framework_type = kwargs.get("framework_type", None)
+        use_wandb = kwargs.get("use_wandb", None)
         wb_logger = WBLogger() if use_wandb else None
 
         for epoch in range(1, n_epochs_ev[evaluation_type]):
+            self.epoch = epoch
 
-            # encoder
+            # encoder trainable setting
             if (framework_type == 'supervised') or (framework_type == "apc"):
                 self.encoder.train()
             elif evaluation_type == "fine_tuning_evaluation":
@@ -348,13 +486,19 @@ class Evaluator(object):
             val_loss = self._validate_ev(optimizer, **kwargs)
             test_loss = self._test_ev(optimizer, **kwargs)
 
-            # test accuracy
-            test_acc = self._compute_test_acc(**kwargs)
+            # evaluation (test accuracy | test macro AUC)
+            test_acc, test_macroAUC = None, None
+            if dataset_name == "UCR":
+                test_acc = self._compute_test_acc(**kwargs)
+            elif dataset_name == "PTB-XL":
+                test_macroAUC = self._compute_test_macroAUC(**kwargs)
+            else:
+                test_acc = self._compute_test_acc(**kwargs)
 
             # status log
             if use_wandb:
-                wb_logger.main_log(epoch, train_loss, val_loss, test_loss, test_acc)
-                wb_logger.main_summary(train_loss, val_loss, test_loss, test_acc)
+                wb_logger.main_log(epoch, train_loss, val_loss, test_loss, test_acc=test_acc, test_macroAUC=test_macroAUC)
+                wb_logger.main_summary(train_loss, val_loss, test_loss, test_acc=test_acc, test_macroAUC=test_macroAUC)
                 lrs = [param_group['lr'] for param_group in optimizer.param_groups]
                 wb_logger.log(epoch=epoch, lr_clf=lrs[0], lr_enc=lrs[-1])
 
