@@ -65,3 +65,13 @@ tsne_analysis_log_epochs:
   - 50
   - 100
 
+# evaluation
+loading_checkpoint_fname: "./checkpoints/frameworks/checkpoint-rand_init-ep_100.pth"
+lr_clf_ev: 0.001
+lr_enc_ev: 0.0001
+weight_decay_ev:
+  linear_evaluation: 0.00001
+  fine_tuning_evaluation: 0.001
+n_epochs_ev:
+  linear_evaluation: 50
+  fine_tuning_evaluation: 100

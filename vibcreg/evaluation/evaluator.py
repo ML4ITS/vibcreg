@@ -250,7 +250,6 @@ class Evaluator(object):
         returns output from an encoder-classifier.
         """
         y = self.encoder(x)
-
         if kwargs.get("framework_type") == "apc":
             better_context_kind_apc = kwargs.get("better_context_kind_apc", None)
             y = self.encoder.module.compute_better_context(y, kind=better_context_kind_apc)
@@ -321,7 +320,8 @@ class Evaluator(object):
         for child in get_children(model):
             child.training = True if isinstance(child, nn.BatchNorm1d) or isinstance(child, nn.BatchNorm2d) or isinstance(child, IterNorm) else False
 
-    def fit(self, optimizer, n_epochs_ev: dict, evaluation_type: str, framework_type: str, use_wandb: bool, **kwargs):
+    def fit(self, optimizer, n_epochs_ev: dict, evaluation_type: str, use_wandb: bool, **kwargs):
+        framework_type = kwargs.get("framework_type", None)
         wb_logger = WBLogger() if use_wandb else None
 
         for epoch in range(1, n_epochs_ev[evaluation_type]):
