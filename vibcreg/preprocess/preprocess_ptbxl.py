@@ -1,11 +1,12 @@
-from vibcreg.util import get_git_root
+import ast
+
 import numpy as np
 import pandas as pd
 import wfdb
-import ast
 from torch.utils.data import Dataset
 
 from vibcreg.preprocess.augmentations import Augmentations
+from vibcreg.util import get_git_root
 
 
 class LabelEncoder(object):
@@ -152,7 +153,6 @@ class PTB_XL(Dataset):
 
 
 if __name__ == "__main__":
-    import os
     import matplotlib.pyplot as plt
     from torch.utils.data import DataLoader
     # os.chdir("../")

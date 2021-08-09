@@ -1,6 +1,5 @@
 import torch
-from torch import Tensor
-from torch import relu
+from torch import Tensor, relu
 
 
 def vibcreg_var_loss(z1: Tensor, z2: Tensor) -> Tensor:

@@ -6,8 +6,8 @@
 [2] leaderj1001, "SimSiam", [github](https://github.com/leaderj1001/SimSiam)
 """
 import torch.nn as nn
-from torch import relu
 import wandb
+from torch import relu
 
 from vibcreg.backbone.resnet import ResNet1D, normalization_layer
 from vibcreg.frameworks.framework_util_skeleton import Utility_SSL

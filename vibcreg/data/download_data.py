@@ -16,13 +16,42 @@ def download_ptb_xl_dataset() -> None:
     isthere = data_path.exists()
 
     if isthere:
+        print("PTB-XL dataset already exists")
         return None
 
     # download
     url = "https://drive.google.com/u/0/uc?id=1qwZseccsjvvOdE17hiDL_gDmzYpaNRY0&export=download"
     output = data_path.parent.joinpath("PTB-XL.tar")
-    with output.open("wb") as ww:
-        gdown.download(url, ww)
+    if not output.exists():
+        with output.open("wb") as ww:
+            gdown.download(url, ww)
+
+    # extract
+    with tarfile.open(output) as ff:
+        ff.extractall(data_path.parent)
+
+    output.unlink()
+
+
+def download_ucr_datasets() -> None:
+    """
+    check if the UCR datasets exist. If not, it downloads the UCR datasets by using the `gdown` library.
+    """
+    # check
+    git_root = get_git_root()
+    data_path = git_root.joinpath("vibcreg", "data", "UCRArchive_2018")
+    isthere = data_path.exists()
+
+    if isthere:
+        print("UCR dataset already exists")
+        return None
+
+    # download
+    url = "https://drive.google.com/u/0/uc?id=1ZvKoPvqfvZUmT05g_7ZN9uHrat-puIMj&export=download"
+    output = data_path.parent.joinpath("UCRdata.tar")
+    if not output.exists():
+        with output.open("wb") as ww:
+            gdown.download(url, ww)
 
     # extract
     with tarfile.open(output) as ff:
@@ -32,10 +61,5 @@ def download_ptb_xl_dataset() -> None:
 
 
 if __name__ == "__main__":
-    from argparse import ArgumentParser
-    parser = ArgumentParser()
-    parser.add_argument("--dataset")
-    args = parser.parse_args()
-
-    if args.dataset == "ptbxl":
-        download_ptb_xl_dataset()
+    download_ptb_xl_dataset()
+    download_ucr_datasets()

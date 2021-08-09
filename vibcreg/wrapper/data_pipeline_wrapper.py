@@ -2,8 +2,8 @@ import yaml
 from torch.utils.data import DataLoader
 
 from vibcreg.preprocess.augmentations import Augmentations
-from vibcreg.preprocess.preprocess_ucr import DatasetImporter, UCRDataset
 from vibcreg.preprocess.preprocess_ptbxl import PTB_XL
+from vibcreg.preprocess.preprocess_ucr import DatasetImporter, UCRDataset
 
 
 def load_hyper_param_settings(yaml_fname: str):

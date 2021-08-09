@@ -2,6 +2,7 @@
 `Random Init` denotes a "frozen randomly-initialized encoder".
 """
 import torch.nn as nn
+
 from vibcreg.backbone.resnet import ResNet1D
 from vibcreg.frameworks.framework_util_skeleton import Utility_SSL
 

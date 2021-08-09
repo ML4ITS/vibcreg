@@ -12,10 +12,9 @@ Autoregressive Predictive Coding (APC)
 - better context (i.e., `kind == "mean+max"`)
 - shallow prediction head (i.e., `Wk_fs` and `Wk_fs_2`)
 """
-import wandb
-
 import torch
 import torch.nn as nn
+import wandb
 from torch import relu
 
 from vibcreg.backbone.apc_encoder import APCEncoder

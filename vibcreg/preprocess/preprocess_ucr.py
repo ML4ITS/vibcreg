@@ -1,39 +1,12 @@
 """
 `Dataset` (pytorch) class is defined.
 """
-import os
-import tarfile
-
 import numpy as np
 import pandas as pd
-from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
-import gdown
+from torch.utils.data import Dataset
 
 from vibcreg.preprocess.augmentations import Augmentations
-
-
-def download_ucr_datasets():
-    """
-    check if the UCR datasets exist. If not, it downloads the UCR datasets by using the `gdown` library.
-    """
-    # check
-    isthere = os.path.isdir("./data/UCRArchive_2018")
-
-    if isthere:
-        return None
-
-    # download
-    url = "https://drive.google.com/u/0/uc?id=1ZvKoPvqfvZUmT05g_7ZN9uHrat-puIMj&export=download"
-    output = "./data/UCRdata.tar"
-    gdown.download(url, output)
-
-    # extract
-    my_tar = tarfile.open("./data/UCRdata.tar")
-    my_tar.extractall("./data/")
-    my_tar.close()
-
-    os.unlink("./data/UCRdata.tar")
 
 
 class DatasetImporter(object):

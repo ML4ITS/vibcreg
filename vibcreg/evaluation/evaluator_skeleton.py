@@ -1,26 +1,19 @@
 from abc import ABC, abstractmethod
-import numpy as np
-import matplotlib.pyplot as plt
-import wandb
 
 import torch
 import torch.nn as nn
-from torch import relu
+import wandb
+from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
 
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import roc_curve, auc
-
-from vibcreg.normalization.iter_norm import IterNorm
-from vibcreg.lr_scheduler.cosine_annealing_lr import CosineAnnealingLR
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-
-from vibcreg.frameworks.vibcreg_ import VIbCReg
-from vibcreg.frameworks.barlow_twins import BarlowTwins
-from vibcreg.frameworks.simsiam import SimSiam
-from vibcreg.frameworks.rand_init import RandInit
-from vibcreg.frameworks.cpc import CPC
 from vibcreg.frameworks.apc import APC
+from vibcreg.frameworks.barlow_twins import BarlowTwins
+from vibcreg.frameworks.cpc import CPC
+from vibcreg.frameworks.rand_init import RandInit
+from vibcreg.frameworks.simsiam import SimSiam
+from vibcreg.frameworks.vibcreg_ import VIbCReg
+from vibcreg.lr_scheduler.cosine_annealing_lr import CosineAnnealingLR
+from vibcreg.normalization.iter_norm import IterNorm
 
 
 def update_config(cf, **kwargs):

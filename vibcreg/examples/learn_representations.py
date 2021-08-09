@@ -4,6 +4,7 @@ Run by using
 """
 
 from torch.optim import AdamW
+
 from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
 from vibcreg.wrapper.model_building_wrapper import ModelBuilder
 from vibcreg.wrapper.run_wrapper import run_ssl_for_rl
@@ -22,7 +23,6 @@ def load_args():
 
 
 if __name__ == "__main__":
-    import os
     from argparse import ArgumentParser
     # os.chdir("../")
 

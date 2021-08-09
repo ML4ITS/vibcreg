@@ -3,7 +3,6 @@
 Note that there is no skip-connection. It is just 'ordinary CNN architecture' + 'downsampling by striding'.
 """
 import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

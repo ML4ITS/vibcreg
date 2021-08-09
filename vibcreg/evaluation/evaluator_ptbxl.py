@@ -1,10 +1,9 @@
-import numpy as np
 import matplotlib.pyplot as plt
-import wandb
+import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.metrics import roc_curve, auc
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import wandb
+from sklearn.metrics import roc_curve, auc, confusion_matrix, ConfusionMatrixDisplay
 
 from vibcreg.evaluation.evaluator_skeleton import Evaluator
 

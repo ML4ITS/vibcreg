@@ -2,10 +2,13 @@
 You can run either 'linear evaluation' or 'fine tuning evaluation'.
 """
 import os
+
 from torch.optim import AdamW
-from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
 from vibcreg.evaluation.evaluator import update_config, Evaluator
+
 from vibcreg.backbone.apc_encoder import APCEncoder
+from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
+
 os.chdir("../../")  # move to the root dir
 
 # load hyper-parameter settings

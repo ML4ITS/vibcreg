@@ -1,15 +1,14 @@
 import torch.nn as nn
 
-from vibcreg.backbone.resnet import ResNet1D
-from vibcreg.backbone.downsampling_cnn import DownsamplingCNN
 from vibcreg.backbone.apc_encoder import APCEncoder
-
-from vibcreg.frameworks.vibcreg_ import VIbCReg, Utility_VIbCReg
-from vibcreg.frameworks.barlow_twins import BarlowTwins, Utility_BarlowTwins
-from vibcreg.frameworks.simsiam import SimSiam, Utility_SimSiam
-from vibcreg.frameworks.rand_init import RandInit, Utility_RandInit
-from vibcreg.frameworks.cpc import CPC, Utility_CPC
+from vibcreg.backbone.downsampling_cnn import DownsamplingCNN
+from vibcreg.backbone.resnet import ResNet1D
 from vibcreg.frameworks.apc import APC, Utility_APC
+from vibcreg.frameworks.barlow_twins import BarlowTwins, Utility_BarlowTwins
+from vibcreg.frameworks.cpc import CPC, Utility_CPC
+from vibcreg.frameworks.rand_init import RandInit, Utility_RandInit
+from vibcreg.frameworks.simsiam import SimSiam, Utility_SimSiam
+from vibcreg.frameworks.vibcreg_ import VIbCReg, Utility_VIbCReg
 
 
 class ModelBuilder(object):

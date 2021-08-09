@@ -6,6 +6,7 @@ Mean ShiFt (MSF)
 [2] MSF original GitHub: https://github.com/UMBCvision/MSF
 """
 import copy
+
 import torch
 import torch.nn as nn
 

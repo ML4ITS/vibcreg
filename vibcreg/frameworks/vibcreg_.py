@@ -5,17 +5,15 @@ Reference:
 [1] A. Bardes et al., 2021, "VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning"
 """
 import torch.nn as nn
+import wandb
 from torch import relu
 
-import wandb
-
 from vibcreg.backbone.resnet import ResNet1D, normalization_layer
-from vibcreg.frameworks.framework_util_skeleton import Utility_SSL
 from vibcreg.frameworks.addin_msf import MemoryBank, AddinMSF
-
+from vibcreg.frameworks.framework_util_skeleton import Utility_SSL
 from vibcreg.losses.covariance_loss import vibcreg_cov_loss, vicreg_cov_loss
-from vibcreg.losses.variance_loss import vibcreg_var_loss
 from vibcreg.losses.invariance_loss import vibcreg_invariance_loss
+from vibcreg.losses.variance_loss import vibcreg_var_loss
 
 
 class Projector(nn.Module):

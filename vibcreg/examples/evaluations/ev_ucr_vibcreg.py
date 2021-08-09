@@ -2,11 +2,14 @@
 You can run either 'linear evaluation' or 'fine tuning evaluation'.
 """
 import os
+
 from torch.optim import AdamW
-from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
+
+from vibcreg.backbone.resnet import ResNet1D
 from vibcreg.evaluation.evaluator_skeleton import update_config
 from vibcreg.evaluation.evaluator_ucr import EvaluatorUCR
-from vibcreg.backbone.resnet import ResNet1D
+from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
+
 os.chdir("../../")  # move to the root dir
 
 # load hyper-parameter settings

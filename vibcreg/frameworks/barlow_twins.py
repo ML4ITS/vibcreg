@@ -4,13 +4,12 @@
 # References
 [1] J. Zbontar et al., 2021, "Barlow Twins: Self-Supervised Learning via Redundancy Reduction"
 """
-import torch
-import torch.nn as nn
-from torch import relu
-
 import matplotlib.pyplot as plt
 import pandas as pd
+import torch
+import torch.nn as nn
 import wandb
+from torch import relu
 
 from vibcreg.backbone.resnet import ResNet1D, normalization_layer
 from vibcreg.frameworks.framework_util_skeleton import Utility_SSL

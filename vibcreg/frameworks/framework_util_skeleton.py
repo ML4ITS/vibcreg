@@ -4,22 +4,18 @@ There is no skeleton for a SSL framework since `torch.nn.Module` already provide
 """
 from abc import ABC, abstractmethod
 
-import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-import wandb
-
+import numpy as np
 import torch
 import torch.nn.functional as F
-
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import accuracy_score
+import wandb
 from sklearn.manifold import TSNE
+from sklearn.metrics import accuracy_score, f1_score
 from sklearn.multioutput import MultiOutputClassifier
-from sklearn.metrics import f1_score
+from sklearn.neighbors import KNeighborsClassifier
 
 from vibcreg.lr_scheduler.cosine_annealing_lr import CosineAnnealingLR
-
 from vibcreg.util import get_git_root
 
 

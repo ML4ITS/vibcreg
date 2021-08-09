@@ -8,7 +8,6 @@ Define `ResNet1D` which consists of `FirstBlock` and `ResidualBlock`.
 [4] kuangliu, "pytorch-cifar/models/resnet.py", [github_link](https://github.com/kuangliu/pytorch-cifar/blob/master/models/resnet.py)
 """
 import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

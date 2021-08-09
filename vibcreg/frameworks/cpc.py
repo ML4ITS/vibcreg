@@ -11,17 +11,12 @@ The paper [4] presents that CPC results in the best performance on the ECG datas
 [3] K. He et al., 2019, "Momentum contrast for unsupervised visual representation learning"; Regarding 'InfoNCE', 'temperature'
 [4] T. Mehari and N. Strodthoff, 2021, "Self-supervised representation learning from 12-lead ECG data"; Regarding 'deeper predictor'
 """
-import numpy as np
 import matplotlib.pyplot as plt
-import wandb
-
+import numpy as np
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
-
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.multioutput import MultiOutputClassifier
-from sklearn.metrics import f1_score
+import torch.nn.functional as F
+import wandb
 
 from vibcreg.backbone.downsampling_cnn import DownsamplingCNN
 from vibcreg.frameworks.framework_util_skeleton import Utility_SSL
