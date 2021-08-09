@@ -1,0 +1,18 @@
+# framework
+forecast_pred_hid_apc: 512
+n_pred_steps_apc:
+  - 3
+
+# framework loss
+weight_on_pc_loss_apc: 1.
+better_context_kind_apc: "mean+max"
+
+# framework utility (belongs to the abstract class: `Utility_SSL`)
+framework_type: "apc"
+use_wandb: True
+project_name: "RLonUCR"
+n_neighbors_kNN: 5
+n_jobs_for_kNN: 10
+model_saving_epochs:
+  - 10
+  - 100

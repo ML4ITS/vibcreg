@@ -23,35 +23,23 @@ from vibcreg.lr_scheduler.cosine_annealing_lr import CosineAnnealingLR
 
 class Utility_SSL(ABC):
     @abstractmethod
-    def __init__(self, rl_model, device_ids: list, batch_size=256, n_epochs=100, framework_type="vibcreg", weight_on_msfLoss=0.,
-                 use_wandb=True, project_name="RLonUCR", run_name=None, n_neighbors_kNN=5, n_jobs_for_kNN=10, model_saving_epochs=(10, 100), **kwargs):
+    def __init__(self, rl_model, device_ids: list, framework_type="vibcreg", weight_on_msfLoss=0.,
+                 use_wandb=True, run_name=None, **kwargs):
         """
         :param rl_model: instance of a SSL model
         :param device_ids: a list of gpu-device-ids.
-        :param batch_size:
-        :param n_epochs:
         :param framework_type:
         :param weight_on_msfLoss:
         :param use_wandb:
-        :param project_name: a project name in W&B.
         :param run_name: a run name in the W&B project. If None, it's automatically set.
-        :param n_neighbors_kNN: n_neighbors for kNN.
-        :param n_jobs_for_kNN: n_cpus for kNN.
-        :param model_saving_epochs: a list of epochs when the model is saved.
         """
         self.rl_model = rl_model
         self.device_ids = device_ids
         self.device = device_ids[0]
-        self.batch_size = batch_size
-        self.n_epochs = n_epochs
         self.framework_type = framework_type
         self.weight_on_msfLoss = weight_on_msfLoss
         self.use_wandb = use_wandb
-        self.project_name = project_name
         self.run_name = run_name
-        self.n_neighbors_kNN = n_neighbors_kNN
-        self.n_jobs_for_kNN = n_jobs_for_kNN
-        self.model_saving_epochs = model_saving_epochs
 
         # params
         self.epoch = None
@@ -64,21 +52,20 @@ class Utility_SSL(ABC):
     def update_epoch(self, epoch):
         self.epoch = epoch
 
-    def setup_lr_scheduler(self, optimizer, kind="CosineAnnealingLR", **kwargs):
+    def setup_lr_scheduler(self, optimizer, batch_size, n_epochs, kind="CosineAnnealingLR", **kwargs):
         if kind == "CosineAnnealingLR":
             train_dataset_size = kwargs.get("train_dataset_size", None)
             n_gpus = len(self.device_ids)
-            self.lr_scheduler = CosineAnnealingLR(optimizer, train_dataset_size, n_gpus, self.batch_size, self.n_epochs).get_lr_scheduler()
+            self.lr_scheduler = CosineAnnealingLR(optimizer, train_dataset_size, n_gpus, batch_size, n_epochs).get_lr_scheduler()
         else:
             raise ValueError("unavailable name for `lr_scheduler`.")
 
-    def init_wandb(self, cf):
-        dataset_name = cf["dataset_name"]
+    def init_wandb(self, config_dataset, config_backbone, config_framework, config_train):
         matplotlib.use('Agg')  # eliminates the issue of 'TclError: Can't find a usable tk.tcl in the following directories:' when using `matplotlib`.
 
         # set `run_name`
-        if dataset_name == "UCR":
-            ucr_dataset_name = cf["ucr_dataset_name"]
+        if config_dataset["dataset_name"] == "UCR":
+            ucr_dataset_name = config_dataset["ucr_dataset_name"]
             run_name = f"{ucr_dataset_name}-{self.framework_type}"
         else:
             run_name = f"{self.framework_type}"
@@ -88,7 +75,16 @@ class Utility_SSL(ABC):
 
         # initialize wandb
         if self.use_wandb:
-            self.wb = wandb.init(project=self.project_name, config=cf, name=run_name)
+            config = {}
+            for cf in [config_dataset, config_backbone, config_framework, config_train]:
+                for k, v in cf.items():
+                    config[k] = v
+
+            project_name = config_train["project_name"].get(config_dataset["dataset_name"], None)
+            if project_name is None:
+                project_name = config_dataset["dataset_name"]
+
+            self.wb = wandb.init(project=project_name, config=config, name=run_name)
         else:
             self.wb = None
 
@@ -170,15 +166,15 @@ class Utility_SSL(ABC):
 
 
     @torch.no_grad()
-    def validate(self, val_data_loader, optimizer, dataset_name, **kwargs):
+    def validate(self, val_data_loader, optimizer, dataset_name: str, n_neighbors_kNN: int, n_jobs_for_kNN: int, **kwargs):
         self.rl_model.eval()
         val_loss = self.representation_learning(val_data_loader, optimizer, "validate")
 
         if self.use_wandb:
             if dataset_name == "PTB-XL":
-                self.log_macro_f1score_during_validation(val_data_loader)
+                self.log_macro_f1score_during_validation(val_data_loader, n_neighbors_kNN, n_jobs_for_kNN)
             else:
-                self.log_kNN_acc_during_validation(val_data_loader)
+                self.log_kNN_acc_during_validation(val_data_loader, n_neighbors_kNN, n_jobs_for_kNN)
 
         return val_loss
 
@@ -209,7 +205,7 @@ class Utility_SSL(ABC):
         return repr_
 
     @torch.no_grad()
-    def log_kNN_acc_during_validation(self, val_data_loader):
+    def log_kNN_acc_during_validation(self, val_data_loader, n_neighbors_kNN, n_jobs_for_kNN):
         """
         Log kNN-accuracy on a validation dataset.
         """
@@ -217,14 +213,14 @@ class Utility_SSL(ABC):
         repr_ = self._representation_for_validation(subxs)
         labels = labels.view(-1)
 
-        model = KNeighborsClassifier(self.n_neighbors_kNN, n_jobs=self.n_jobs_for_kNN)
+        model = KNeighborsClassifier(n_neighbors_kNN, n_jobs=n_jobs_for_kNN)
         model.fit(repr_, labels)
         pred_labels = model.predict(repr_)
         acc = accuracy_score(labels, pred_labels)
         wandb.log({'epoch': self.epoch, 'kNN_acc': acc})
 
     @torch.no_grad()
-    def log_macro_f1score_during_validation(self, val_data_loader, min_n_labels=10):
+    def log_macro_f1score_during_validation(self, val_data_loader, n_neighbors_kNN, n_jobs_for_kNN, min_n_labels=10):
         """
         computes kNN-macro-F1-score on the validation dataset.
         In computing the f1-score, classes that have less than `min_n_labels` are not considered.
@@ -232,8 +228,8 @@ class Utility_SSL(ABC):
         subxs, labels = self._stack_val_data(val_data_loader)
         repr_ = self._representation_for_validation(subxs)
 
-        model = KNeighborsClassifier(self.n_neighbors_kNN)
-        multi_target_model = MultiOutputClassifier(model, n_jobs=self.n_jobs_for_kNN)
+        model = KNeighborsClassifier(n_neighbors_kNN)
+        multi_target_model = MultiOutputClassifier(model, n_jobs=n_jobs_for_kNN)
         multi_target_model.fit(repr_, labels)
         pred_labels = multi_target_model.predict(repr_)
         n_classes = labels.shape[-1]
@@ -246,10 +242,10 @@ class Utility_SSL(ABC):
         metric /= count
         wandb.log({'epoch': self.epoch, 'macro_f1_score': metric})
 
-    def save_checkpoint(self, epoch, optimizer, train_loss, val_loss):
+    def save_checkpoint(self, epoch, optimizer, train_loss, val_loss, model_saving_epochs=(10, 100)):
         model_saving_path = "./checkpoints/frameworks/checkpoint-{}-ep_{}.pth"
 
-        if epoch in self.model_saving_epochs:
+        if epoch in model_saving_epochs:
             torch.save({'epoch': epoch,
                         'model_state_dict': self.rl_model.module.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
@@ -258,7 +254,7 @@ class Utility_SSL(ABC):
                         }, model_saving_path.format(self.framework_type, epoch))
 
     @torch.no_grad()
-    def get_batch_of_representations(self, test_data_loader, dataset_name, **kwargs):
+    def get_batch_of_representations(self, test_data_loader, dataset_name: str, **kwargs):
         self.rl_model.module.encoder.eval()
 
         if dataset_name == "PTB-XL":

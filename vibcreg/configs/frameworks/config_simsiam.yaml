@@ -1,0 +1,20 @@
+# framework
+proj_hid_simsiam: 2048
+proj_out_simsiam: 2048
+norm_layer_type_proj_simsiam: "BatchNorm"
+pred_hid_simsiam: 512
+pred_out_simsiam: 2048
+norm_layer_type_pred_simsiam: "BatchNorm"
+
+# framework loss
+#
+
+# framework utility (belongs to the abstract class: `Utility_SSL`)
+framework_type: "simsiam"
+use_wandb: True
+project_name: "PTB-XL"
+n_neighbors_kNN: 5
+n_jobs_for_kNN: 10
+model_saving_epochs:
+  - 10
+  - 100

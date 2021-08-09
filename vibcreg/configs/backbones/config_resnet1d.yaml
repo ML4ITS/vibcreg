@@ -1,0 +1,11 @@
+# backbone-encoder
+backbone_type: "resnet1d"
+n_blocks_enc:
+  - 1
+  - 1
+  - 1
+  - 1
+out_channels_enc: 64
+kernel_size_enc: 3
+norm_layer_type_enc: "BatchNorm"
+dropout_rate_enc: 0.

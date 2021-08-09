@@ -4,7 +4,8 @@ You can run either 'linear evaluation' or 'fine tuning evaluation'.
 import os
 from torch.optim import AdamW
 from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
-from vibcreg.evaluation.evaluator import update_config, Evaluator
+from vibcreg.evaluation.evaluator_skeleton import update_config
+from vibcreg.evaluation.evaluator_ucr import EvaluatorUCR
 from vibcreg.backbone.resnet import ResNet1D
 os.chdir("../../")  # move to the root dir
 
@@ -17,18 +18,21 @@ update_config(cf, evaluation_type=evaluation_type)
 train_data_loader, val_data_loader, test_data_loader = build_data_pipeline(cf)
 
 # evaluator
-evaluator = Evaluator(cf, train_data_loader, val_data_loader, test_data_loader)
+evaluator = EvaluatorUCR(cf=cf,
+                         train_data_loader=train_data_loader,
+                         val_data_loader=val_data_loader,
+                         test_data_loader=test_data_loader, **cf)
 
 # load model
 encoder = ResNet1D(**cf)
-evaluator.load_model(encoder, **cf)
+evaluator.load_model(encoder)
 
 # build classifier
 evaluator.build_classifier(**cf)
 
 # initialize wandb
 evaluator.init_wandb(**cf)
-evaluator.wandb_watch(**cf)
+evaluator.wandb_watch()
 
 # optimizer
 optimizer = AdamW(evaluator.trainable_params(**cf), weight_decay=cf["weight_decay_ev"][cf["evaluation_type"]])

@@ -1,0 +1,27 @@
+# framework
+proj_hid_vibcreg: 4096
+proj_out_vibcreg: 4096
+norm_layer_type_proj_vibcreg: "BatchNorm"
+add_IterN_at_the_last_in_proj_vibcreg: True
+weight_on_msfLoss: 5.
+use_predictor_msf: False
+size_mb: 1024
+k_msf: 2
+tau_msf: 0.99
+use_EMAN_msf: False
+
+# framework loss
+lambda_vibcreg: 25.
+mu_vibcreg: 25.
+nu_vibcreg: 200.
+loss_type_vibcreg: "hybrid"
+
+# framework utility (belongs to the abstract class: `Utility_SSL`)
+framework_type: "vbibcreg"
+use_wandb: True
+project_name: "PTB-XL"
+n_neighbors_kNN: 5
+n_jobs_for_kNN: 10
+model_saving_epochs:
+  - 10
+  - 100

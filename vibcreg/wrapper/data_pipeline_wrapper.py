@@ -19,12 +19,15 @@ def load_hyper_param_settings(yaml_fname: str):
     return cf
 
 
-def build_data_pipeline(cf) -> (DataLoader, DataLoader, DataLoader):
+def build_data_pipeline(config_dataset) -> (DataLoader, DataLoader, DataLoader):
     """
-    :param cf: consists of hyper-parameter settings loaded by `yaml`.
+    :param config_dataset: dataset hyper-parameter settings loaded by `yaml`.
     :return: `train_data_loader`, `val_data_loader`, `test_data_loader`
     """
+    cf = config_dataset
     dataset_name = cf["dataset_name"]
+    batch_size = cf["batch_size"]
+    num_workers = cf["num_workers"]
 
     if dataset_name == "UCR":
         dataset_importer = DatasetImporter(**cf)
@@ -32,9 +35,9 @@ def build_data_pipeline(cf) -> (DataLoader, DataLoader, DataLoader):
         train_dataset = UCRDataset("train", dataset_importer, augs, **cf)
         test_dataset = UCRDataset("test", dataset_importer, augs, **cf)
         # build the `DataLoader`s
-        train_data_loader = DataLoader(train_dataset, cf["batch_size"], num_workers=cf["num_workers"], shuffle=True)
-        val_data_loader = DataLoader(test_dataset, cf["batch_size"], num_workers=cf["num_workers"], shuffle=True)
-        test_data_loader = DataLoader(test_dataset, cf["batch_size"], num_workers=cf["num_workers"], shuffle=True)
+        train_data_loader = DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True)
+        val_data_loader = DataLoader(test_dataset, batch_size, num_workers=num_workers, shuffle=True)
+        test_data_loader = DataLoader(test_dataset, batch_size, num_workers=num_workers, shuffle=True)
 
     elif dataset_name == "PTB-XL":
         augs = Augmentations(**cf)
@@ -42,9 +45,9 @@ def build_data_pipeline(cf) -> (DataLoader, DataLoader, DataLoader):
         val_dataset = PTB_XL("validate", augs, **cf)
         test_dataset = PTB_XL("test", augs, **cf)
         # build the `DataLoader`s
-        train_data_loader = DataLoader(train_dataset, cf["batch_size"], num_workers=cf["num_workers"], shuffle=True)
-        val_data_loader = DataLoader(val_dataset, cf["batch_size"], num_workers=cf["num_workers"], shuffle=True)
-        test_data_loader = DataLoader(test_dataset, cf["batch_size"], num_workers=cf["num_workers"], shuffle=True)
+        train_data_loader = DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True)
+        val_data_loader = DataLoader(val_dataset, batch_size, num_workers=num_workers, shuffle=True)
+        test_data_loader = DataLoader(test_dataset, batch_size, num_workers=num_workers, shuffle=True)
 
     else:
         raise ValueError("invalid `dataset_name`.")

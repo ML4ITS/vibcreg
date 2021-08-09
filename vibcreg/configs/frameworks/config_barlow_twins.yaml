@@ -1,0 +1,17 @@
+# framework
+proj_hid_barlow: 4096
+proj_out_barlow: 4096
+norm_layer_type_proj_barlow: "BatchNorm"
+
+# framework loss
+lambda_barlow: 0.005
+
+# framework utility (belongs to the abstract class: `Utility_SSL`)
+framework_type: "barlow_twins"
+#use_wandb: True
+#project_name: "RLonUCR"
+#n_neighbors_kNN: 5
+#n_jobs_for_kNN: 10
+#model_saving_epochs:
+#  - 10
+#  - 100
