@@ -1,6 +1,8 @@
 import torch.nn as nn
 
 from vibcreg.backbone.resnet import ResNet1D
+from vibcreg.backbone.downsampling_cnn import DownsamplingCNN
+from vibcreg.backbone.apc_encoder import APCEncoder
 
 from vibcreg.frameworks.vibcreg_ import VIbCReg, Utility_VIbCReg
 from vibcreg.frameworks.barlow_twins import BarlowTwins, Utility_BarlowTwins
@@ -21,6 +23,10 @@ class ModelBuilder(object):
         backbone_type = self.config_backbone["backbone_type"]
         if backbone_type == "resnet1d":
             encoder = ResNet1D(self.config_dataset["n_data_channels"], **self.config_backbone)
+        elif backbone_type == "downsampling_cnn":
+            encoder = DownsamplingCNN(**self.config_backbone)
+        elif backbone_type == "apc_encoder":
+            encoder = APCEncoder(self.config_dataset["n_data_channels"], **self.config_backbone)
         else:
             raise ValueError("invalid `backbone_type`")
         return encoder

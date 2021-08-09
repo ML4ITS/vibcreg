@@ -6,10 +6,3 @@
 
 # framework utility (belongs to the abstract class: `Utility_SSL`)
 framework_type: "rand_init"
-use_wandb: True
-project_name: "PTB-XL"
-n_neighbors_kNN: 5
-n_jobs_for_kNN: 10
-model_saving_epochs:
-  - 10
-  - 100

@@ -11,10 +11,3 @@ norm_layer_type_pred_simsiam: "BatchNorm"
 
 # framework utility (belongs to the abstract class: `Utility_SSL`)
 framework_type: "simsiam"
-use_wandb: True
-project_name: "PTB-XL"
-n_neighbors_kNN: 5
-n_jobs_for_kNN: 10
-model_saving_epochs:
-  - 10
-  - 100

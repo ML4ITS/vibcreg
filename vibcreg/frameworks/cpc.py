@@ -70,10 +70,10 @@ class Predictor(nn.Module):
 
 
 class CPC(nn.Module):
-    def __init__(self, encoder: DownsamplingCNN, enc_hid_channels_cpc, max_pred_step=4, **kwargs):
+    def __init__(self, encoder: DownsamplingCNN, max_pred_step=4, **kwargs):
         super().__init__()
-        self.enc_hid_channels_cpc = enc_hid_channels_cpc
         self.max_pred_step = max_pred_step
+        self.enc_hid_channels_cpc = encoder.enc_hid_channels_cpc
 
         # define modules
         self.encoder = encoder

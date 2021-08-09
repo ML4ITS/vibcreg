@@ -23,12 +23,12 @@ from vibcreg.frameworks.framework_util_skeleton import Utility_SSL
 
 
 class APC(nn.Module):
-    def __init__(self, encoder: APCEncoder, in_channels_enc, forecast_pred_hid_apc=512, n_pred_steps_apc: list = (3, ), **kwargs):
+    def __init__(self, encoder: APCEncoder, forecast_pred_hid_apc=512, n_pred_steps_apc: list = (3, ), **kwargs):
         super().__init__()
         self.encoder = encoder
-        self.in_channels_enc = in_channels_enc
         self.forecast_pred_hid_apc = forecast_pred_hid_apc
         self.n_pred_steps_apc = n_pred_steps_apc
+        self.in_channels_enc = self.encoder.in_channels_enc
 
         self.Wk_fs = nn.ModuleList([nn.Linear(self.encoder.h_size, self.forecast_pred_hid_apc) for _ in self.n_pred_steps_apc])
         self.Wk_fs_2 = nn.ModuleList([nn.Linear(self.forecast_pred_hid_apc, self.in_channels_enc) for _ in self.n_pred_steps_apc])
@@ -47,12 +47,12 @@ class APC(nn.Module):
 
 
 class Utility_APC(Utility_SSL):
-    def __init__(self, in_channels_enc, n_pred_steps_apc, weight_on_pc_loss_apc=1., better_context_kind_apc="mean+max", **kwargs):
+    def __init__(self, n_pred_steps_apc, weight_on_pc_loss_apc=1., better_context_kind_apc="mean+max", **kwargs):
         super(Utility_APC, self).__init__(**kwargs)
-        self.in_channels_enc = in_channels_enc
         self.n_pred_steps_apc = n_pred_steps_apc
         self.weight_on_pc_loss_apc = weight_on_pc_loss_apc
         self.better_context_kind_apc = better_context_kind_apc
+        self.in_channels_enc = self.rl_model.module.encoder.in_channels_enc
 
         self.criterion_mse = torch.nn.MSELoss()
         # self.criterion_l1_loss = torch.nn.L1Loss()
