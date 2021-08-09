@@ -175,12 +175,10 @@ class Utility_SSL(ABC):
         val_loss = self.representation_learning(val_data_loader, optimizer, "validate")
 
         if self.use_wandb:
-            if dataset_name == "UCR":
-                self.log_kNN_acc_during_validation(val_data_loader)
-            elif dataset_name == "PTB-XL":
+            if dataset_name == "PTB-XL":
                 self.log_macro_f1score_during_validation(val_data_loader)
             else:
-                raise ValueError("invalid `dataset_name`.")
+                self.log_kNN_acc_during_validation(val_data_loader)
 
         return val_loss
 
@@ -263,17 +261,7 @@ class Utility_SSL(ABC):
     def get_batch_of_representations(self, test_data_loader, dataset_name, **kwargs):
         self.rl_model.module.encoder.eval()
 
-        if dataset_name == "UCR":
-            reprs = torch.tensor([])
-            labels = torch.tensor([])
-            for subx_view1, subx_view2, label in test_data_loader:  # subx: (batch * 1 * subseq_len)
-                repr_ = self._representation_for_validation(subx_view1)
-                reprs = torch.cat((reprs, repr_), dim=0)
-                labels = torch.cat((labels, label.cpu()), dim=0)
-            self.reprs = reprs.numpy()
-            self.labels = labels.numpy().reshape(-1)
-
-        elif dataset_name == "PTB-XL":
+        if dataset_name == "PTB-XL":
             NORM_idx = test_data_loader.dataset.label_encoder.abb2idx['NORM']
             SR_idx = test_data_loader.dataset.label_encoder.abb2idx['SR']
             reprs = torch.tensor([])
@@ -288,9 +276,15 @@ class Utility_SSL(ABC):
                 isNORMs = torch.cat((isNORMs, isNORM))
             self.reprs = reprs.numpy()
             self.labels = isNORMs.numpy()  # classes are divided as 1) abnormal(class:0), 2) normal(class:1)
-
         else:
-            raise ValueError("invalid `dataset_name`.")
+            reprs = torch.tensor([])
+            labels = torch.tensor([])
+            for subx_view1, subx_view2, label in test_data_loader:  # subx: (batch * 1 * subseq_len)
+                repr_ = self._representation_for_validation(subx_view1)
+                reprs = torch.cat((reprs, repr_), dim=0)
+                labels = torch.cat((labels, label.cpu()), dim=0)
+            self.reprs = reprs.numpy()
+            self.labels = labels.numpy().reshape(-1)
 
     def log_feature_histogram(self, n_samples=1000):
         """
