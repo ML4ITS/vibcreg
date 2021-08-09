@@ -1,6 +1,4 @@
-import os
-import tarfile
-import gdown
+
 import numpy as np
 import pandas as pd
 import wfdb
@@ -8,29 +6,6 @@ import ast
 from torch.utils.data import Dataset
 
 from vibcreg.preprocess.augmentations import Augmentations
-
-
-def download_ptb_xl_dataset():
-    """
-    check if the PTB-XL dataset exists. If not, it downloads the dataset by using the `gdown` library.
-    """
-    # check
-    isthere = os.path.isdir("./data/PTB-XL")
-
-    if isthere:
-        return None
-
-    # download
-    url = "https://drive.google.com/u/0/uc?id=1qwZseccsjvvOdE17hiDL_gDmzYpaNRY0&export=download"
-    output = "./data/PTB-XL.tar"
-    gdown.download(url, output)
-
-    # extract
-    my_tar = tarfile.open("./data/PTB-XL.tar")
-    my_tar.extractall("./data/")
-    my_tar.close()
-
-    os.unlink("./data/PTB-XL.tar")
 
 
 class LabelEncoder(object):

@@ -8,11 +8,13 @@ dependencies:
   - pip
   - cudatoolkit=11.1
   - pytorch
-  - torchvision
   - numpy
   - matplotlib
   - ipython
+  - scikit-learn
   - pip:
-    - transformers
     - einops
-    - statsmodels
+    - wandb
+    - gitpython
+    - gdown
+    - wfdb
