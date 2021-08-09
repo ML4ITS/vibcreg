@@ -1,5 +1,6 @@
 # Data
 vibcreg/data/PTB-XL
+vibcreg/data/UCRArchive_2018
 *.pth
 
 .idea/
