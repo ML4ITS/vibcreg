@@ -1,4 +1,4 @@
-
+from vibcreg.util import get_git_root
 import numpy as np
 import pandas as pd
 import wfdb
@@ -10,7 +10,8 @@ from vibcreg.preprocess.augmentations import Augmentations
 
 class LabelEncoder(object):
     def __init__(self):
-        df = pd.read_csv(os.path.join("./data/PTB-XL", "scp_statements.csv"))
+        self.data_root = get_git_root().joinpath("vibcreg", "data", "PTB-XL")
+        df = pd.read_csv(self.data_root.joinpath("scp_statements.csv"))
         self.abb2idx = {}
         i = 0
         for abb in df.iloc[:, 0]:
@@ -52,6 +53,7 @@ class PTB_XL(Dataset):
         self.test_fold = test_fold
         self.train_downsampling_rate = train_downsampling_rate
         self.sampling_rate = sampling_rate
+        self.data_root = get_git_root().joinpath("vibcreg", "data", "PTB-XL")
 
         # load and process annotation data
         Y = self.load_annotation_data()
@@ -61,9 +63,9 @@ class PTB_XL(Dataset):
         self.label_encoder = LabelEncoder()
         self._len = self.Y_.shape[0]
 
-    @staticmethod
-    def load_annotation_data():
-        Y = pd.read_csv("./data/PTB-XL/ptbxl_database.csv", index_col='ecg_id')
+    def load_annotation_data(self):
+        # Y = pd.read_csv("./data/PTB-XL/ptbxl_database.csv", index_col='ecg_id')
+        Y = pd.read_csv(self.data_root.joinpath("ptbxl_database.csv"), index_col='ecg_id')
         Y.scp_codes = Y.scp_codes.apply(lambda x: ast.literal_eval(x))
         return Y
 
@@ -101,7 +103,7 @@ class PTB_XL(Dataset):
             fname = y.filename_hr  # hr: high rate: 500Hz
         else:
             raise ValueError("invalid `sampling_rate`.")
-        x, _ = wfdb.rdsamp(os.path.join("./data/PTB-XL", fname))  # x: (seq_len * 12)
+        x, _ = wfdb.rdsamp(str(self.data_root.joinpath(fname)))  # x: (seq_len * 12)
         x = np.transpose(x, (1, 0))  # (12 * seq_len)
         return x, y
 
@@ -153,7 +155,7 @@ if __name__ == "__main__":
     import os
     import matplotlib.pyplot as plt
     from torch.utils.data import DataLoader
-    os.chdir("../")
+    # os.chdir("../")
 
     # data pipeline
     batch_size = 6

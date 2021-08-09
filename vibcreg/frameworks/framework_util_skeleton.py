@@ -20,6 +20,8 @@ from sklearn.metrics import f1_score
 
 from vibcreg.lr_scheduler.cosine_annealing_lr import CosineAnnealingLR
 
+from vibcreg.util import get_git_root
+
 
 class Utility_SSL(ABC):
     @abstractmethod
@@ -48,6 +50,7 @@ class Utility_SSL(ABC):
         self.wb = None
         self.reprs = None
         self.labels = None
+        self.vibcreg_folder = get_git_root().joinpath("vibcreg")
 
     def update_epoch(self, epoch):
         self.epoch = epoch
@@ -243,15 +246,16 @@ class Utility_SSL(ABC):
         wandb.log({'epoch': self.epoch, 'macro_f1_score': metric})
 
     def save_checkpoint(self, epoch, optimizer, train_loss, val_loss, model_saving_epochs=(10, 100)):
-        model_saving_path = "./checkpoints/frameworks/checkpoint-{}-ep_{}.pth"
 
         if epoch in model_saving_epochs:
+            filename = f"checkpoint-{self.framework_type}-ep_{epoch}.pth"
+            savepath = self.vibcreg_folder.joinpath("checkpoints", filename)
             torch.save({'epoch': epoch,
                         'model_state_dict': self.rl_model.module.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
                         'train_loss': train_loss,
                         'val_loss': val_loss,
-                        }, model_saving_path.format(self.framework_type, epoch))
+                        }, savepath)
 
     @torch.no_grad()
     def get_batch_of_representations(self, test_data_loader, dataset_name: str, **kwargs):
