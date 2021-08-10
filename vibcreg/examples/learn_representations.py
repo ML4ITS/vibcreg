@@ -1,6 +1,6 @@
 """
 Run by using
-`python -m vibcreg.examples.learn_representations.py --config_dataset config_dataset_filepath --config_backbone config_backbone_filepath --config_framework config_framework_filepath --config_train config_train_filepath --device_ids "0"`
+`python -m vibcreg.examples.learn_representations --config_dataset config_dataset_filepath --config_backbone config_backbone_filepath --config_framework config_framework_filepath --config_train config_train_filepath --device_ids "0"`
 """
 
 from torch.optim import AdamW
@@ -12,7 +12,7 @@ from vibcreg.wrapper.run_wrapper import run_ssl_for_rl
 
 def load_args():
     parser = ArgumentParser()
-    parser.add_argument('--config_dataset', type=str, help="Path to the dataset config.", default="vibcreg/configs/datasets/config_ptbxl.yaml")
+    parser.add_argument('--config_dataset', type=str, help="Path to the dataset config.", default="vibcreg/configs/datasets/config_ucr.yaml")
     parser.add_argument('--config_backbone', type=str, help="Path to the backbone config.", default="vibcreg/configs/backbones/config_resnet1d.yaml")
     parser.add_argument('--config_framework', type=str, help="Path to the framework config.", default="vibcreg/configs/frameworks/config_vibcreg.yaml")
     parser.add_argument('--config_train', type=str, help="Path to the training config.", default="vibcreg/configs/train/config_train.yaml")

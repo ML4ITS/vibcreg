@@ -6,6 +6,8 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 
+from vibcreg.util import get_git_root
+from vibcreg.data.download_data import download_ucr_datasets
 from vibcreg.preprocess.augmentations import Augmentations
 
 
@@ -23,10 +25,11 @@ class DatasetImporter(object):
         :param test_random_seed:
         """
         download_ucr_datasets()
+        self.data_root = get_git_root().joinpath("vibcreg", "data", "UCRArchive_2018", ucr_dataset_name)
 
         # fetch an entire dataset
-        df_train = pd.read_csv(f"./data/UCRArchive_2018/{ucr_dataset_name}/{ucr_dataset_name}_TRAIN.tsv", sep='\t', header=None)
-        df_test = pd.read_csv(f"./data/UCRArchive_2018/{ucr_dataset_name}/{ucr_dataset_name}_TEST.tsv", sep='\t', header=None)
+        df_train = pd.read_csv(self.data_root.joinpath(f"{ucr_dataset_name}_TRAIN.tsv"), sep='\t', header=None)
+        df_test = pd.read_csv(self.data_root.joinpath(f"{ucr_dataset_name}_TEST.tsv"), sep='\t', header=None)
         df = pd.concat((df_train, df_test), axis=0)
         X, Y = df.iloc[:, 1:].values, df.iloc[:, [0]].values
 
