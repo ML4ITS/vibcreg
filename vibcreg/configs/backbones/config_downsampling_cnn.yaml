@@ -1,8 +1,0 @@
-backbone_type: "downsampling_cnn"
-downsampling_layers_cpc:
-  - 4
-  - 3
-  - 3
-  - 2
-enc_hid_channels_cpc: 512
-norm_layer_type_cpc: "BatchNorm"
