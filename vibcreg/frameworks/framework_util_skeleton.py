@@ -57,7 +57,7 @@ class Utility_SSL(ABC):
         else:
             raise ValueError("unavailable name for `lr_scheduler`.")
 
-    def init_wandb(self, config_dataset, config_backbone, config_framework, config_train):
+    def init_wandb(self, config_dataset, config_framework):
         matplotlib.use('Agg')  # eliminates the issue of 'TclError: Can't find a usable tk.tcl in the following directories:' when using `matplotlib`.
 
         # set `run_name`
@@ -73,11 +73,11 @@ class Utility_SSL(ABC):
         # initialize wandb
         if self.use_wandb:
             config = {}
-            for cf in [config_dataset, config_backbone, config_framework, config_train]:
+            for cf in [config_dataset, config_framework]:
                 for k, v in cf.items():
                     config[k] = v
 
-            project_name = config_train["project_name"].get(config_dataset["dataset_name"], None)
+            project_name = config_framework["project_name"].get(config_dataset["dataset_name"], None)
             if project_name is None:
                 project_name = config_dataset["dataset_name"]
 

@@ -1,18 +1,18 @@
 
 
-def run_ssl_for_rl(args, config_dataset, config_framework, config_train,
+def run_ssl_for_rl(args, config_dataset, config_framework,
                    train_data_loader, val_data_loader, test_data_loader,
                    rl_util, optimizer):
     """
     run self-supervised learning (SSL) for representation learning (RL).
     """
-    framework_type = config_framework["framework_type"]
     dataset_name = config_dataset['dataset_name']
-    n_neighbors_kNN = config_train['n_neighbors_kNN'].get(dataset_name, 5)
-    n_jobs_for_kNN = config_train['n_jobs_for_kNN']
-    model_saving_epochs = config_train['model_saving_epochs']
+    framework_type = config_framework["framework_type"]
+    n_neighbors_kNN = config_framework['n_neighbors_kNN'].get(dataset_name, 5)
+    n_jobs_for_kNN = config_framework['n_jobs_for_kNN']
+    model_saving_epochs = config_framework['model_saving_epochs']
 
-    for epoch in range(1, config_train["n_epochs"] + 1):
+    for epoch in range(1, config_framework["n_epochs"] + 1):
         rl_util.update_epoch(epoch)
         train_loss = rl_util.representation_learning(train_data_loader, optimizer, 'train')
         val_loss = rl_util.validate(val_data_loader, optimizer, dataset_name, n_neighbors_kNN, n_jobs_for_kNN)

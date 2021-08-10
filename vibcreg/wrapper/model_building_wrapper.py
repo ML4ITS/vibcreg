@@ -12,20 +12,19 @@ from vibcreg.frameworks.vibcreg_ import VIbCReg, Utility_VIbCReg
 
 
 class ModelBuilder(object):
-    def __init__(self, args, config_dataset, config_backbone, config_framework):
+    def __init__(self, args, config_dataset, config_framework):
         self.args = args
         self.config_dataset = config_dataset
-        self.config_backbone = config_backbone
         self.config_framework = config_framework
 
     def build_encoder(self):
-        backbone_type = self.config_backbone["backbone_type"]
+        backbone_type = self.config_framework["backbone_type"]
         if backbone_type == "resnet1d":
-            encoder = ResNet1D(self.config_dataset["n_data_channels"], **self.config_backbone)
+            encoder = ResNet1D(self.config_dataset["n_data_channels"], **self.config_framework)
         elif backbone_type == "downsampling_cnn":
-            encoder = DownsamplingCNN(**self.config_backbone)
+            encoder = DownsamplingCNN(**self.config_framework)
         elif backbone_type == "apc_encoder":
-            encoder = APCEncoder(self.config_dataset["n_data_channels"], **self.config_backbone)
+            encoder = APCEncoder(self.config_dataset["n_data_channels"], **self.config_framework)
         else:
             raise ValueError("invalid `backbone_type`")
         return encoder
