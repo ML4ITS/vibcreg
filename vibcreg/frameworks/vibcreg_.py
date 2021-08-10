@@ -59,14 +59,13 @@ class Predictor(nn.Module):
 class VIbCReg(nn.Module):
     def __init__(self, encoder: ResNet1D, last_channels_enc: int,
                  proj_hid_vibcreg: int = 4096, proj_out_vibcreg: int = 4096, norm_layer_type_proj_vibcreg: str = "BatchNorm", add_IterN_at_the_last_in_proj_vibcreg: bool = True,
-                 weight_on_msfLoss: float = 0., use_predictor_msf: bool = False, **kwargs):
+                 use_predictor_msf: bool = False, **kwargs):
         super().__init__()
         self.encoder = encoder
-        self.weight_on_msfLoss = weight_on_msfLoss
         self.use_predictor_msf = use_predictor_msf
 
         self.projector = Projector(last_channels_enc, proj_hid_vibcreg, proj_out_vibcreg, norm_layer_type_proj_vibcreg, add_IterN_at_the_last_in_proj_vibcreg)
-        if self.weight_on_msfLoss and self.use_predictor_msf:
+        if self.use_predictor_msf:
             self.predictor = Predictor(proj_out_vibcreg)
 
     def forward(self, x1, x2):
@@ -95,15 +94,15 @@ class Utility_VIbCReg(Utility_SSL):
         self.nu_vibcreg = nu_vibcreg
         self.loss_type_vibcreg = loss_type_vibcreg
         self.use_vicreg_FD_loss = use_vicreg_FD_loss
+        self.weight_on_msfLoss = kwargs.get("weight_on_msfLoss", 0.)
 
         self.amsf = None
         self.use_predictor_msf = None
         self.create_msf(**kwargs)
 
     def create_msf(self, device_ids, batch_size, size_mb=1024, k_msf=2, tau_msf=0.99, use_EMAN_msf=False, use_predictor_msf=False, **kwargs):
-        weight_on_msfLoss = kwargs.get("weight_on_msfLoss", None)
         proj_out_vibcreg = kwargs.get("proj_out_vibcreg", None)
-        if weight_on_msfLoss:
+        if self.weight_on_msfLoss:
             memory_bank = MemoryBank(size_mb, k_msf, device_ids, feature_size_msf=proj_out_vibcreg, batch_size=batch_size)
             self.amsf = AddinMSF(memory_bank, tau_msf, use_EMAN_msf)
             self.amsf.create_target_net(self.rl_model)

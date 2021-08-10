@@ -3,7 +3,6 @@ proj_hid_vibcreg: 4096
 proj_out_vibcreg: 4096
 norm_layer_type_proj_vibcreg: "BatchNorm"
 add_IterN_at_the_last_in_proj_vibcreg: True
-weight_on_msfLoss: 0.
 use_predictor_msf: False
 
 # framework loss

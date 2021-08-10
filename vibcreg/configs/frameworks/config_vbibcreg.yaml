@@ -3,7 +3,6 @@ proj_hid_vibcreg: 4096
 proj_out_vibcreg: 4096
 norm_layer_type_proj_vibcreg: "BatchNorm"
 add_IterN_at_the_last_in_proj_vibcreg: True
-weight_on_msfLoss: 5.
 use_predictor_msf: False
 size_mb: 1024
 k_msf: 2
@@ -14,6 +13,7 @@ use_EMAN_msf: False
 lambda_vibcreg: 25.
 mu_vibcreg: 25.
 nu_vibcreg: 200.
+weight_on_msfLoss: 5.
 loss_type_vibcreg: "hybrid"
 
 # framework utility (belongs to the abstract class: `Utility_SSL`)

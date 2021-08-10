@@ -21,13 +21,12 @@ from vibcreg.util import get_git_root
 
 class Utility_SSL(ABC):
     @abstractmethod
-    def __init__(self, rl_model, device_ids: list, framework_type="vibcreg", weight_on_msfLoss=0.,
+    def __init__(self, rl_model, device_ids: list, framework_type="vibcreg",
                  use_wandb=True, run_name=None, **kwargs):
         """
         :param rl_model: instance of a SSL model
         :param device_ids: a list of gpu-device-ids.
         :param framework_type:
-        :param weight_on_msfLoss:
         :param use_wandb:
         :param run_name: a run name in the W&B project. If None, it's automatically set.
         """
@@ -35,7 +34,6 @@ class Utility_SSL(ABC):
         self.device_ids = device_ids
         self.device = device_ids[0]
         self.framework_type = framework_type
-        self.weight_on_msfLoss = weight_on_msfLoss
         self.use_wandb = use_wandb
         self.run_name = run_name
 
