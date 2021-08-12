@@ -10,8 +10,6 @@ python = "^3.8"
 torch = "^1.9"
 torchvision = "*"
 numpy = "*"
-einops = "*"
-pytorch-lightning = "*"
 
 [tool.poetry.dev-dependencies]
 

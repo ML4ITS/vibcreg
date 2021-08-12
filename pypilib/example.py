@@ -13,8 +13,8 @@ from torchvision.transforms import RandomResizedCrop, ColorJitter, RandomHorizon
 from pytorch_lightning.core.lightning import LightningModule
 from pytorch_lightning import Trainer
 
-from .losses import VIbCRegLoss
-from .modules import VIbCReg
+from pypilib.vibcreg.losses import VIbCRegLoss
+from pypilib.vibcreg.modules import VIbCReg
 
 
 class VIbCRegLight(LightningModule):
