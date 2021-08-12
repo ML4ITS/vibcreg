@@ -3,6 +3,8 @@ from functools import partial
 
 import torch
 import torchvision
+from pytorch_lightning import Trainer
+from pytorch_lightning.core.lightning import LightningModule
 from torch import nn, Tensor
 from torch.optim import Adam
 from torch.utils.data import DataLoader, ConcatDataset
@@ -10,11 +12,8 @@ from torchvision import transforms, models
 from torchvision.transforms import RandomResizedCrop, ColorJitter, RandomHorizontalFlip, RandomGrayscale, \
     RandomSolarize, Normalize, RandomApply
 
-from pytorch_lightning.core.lightning import LightningModule
-from pytorch_lightning import Trainer
-
-from pypilib.vibcreg.losses import VIbCRegLoss
-from pypilib.vibcreg.modules import VIbCReg
+from vibcreg.losses import VIbCRegLoss
+from vibcreg.modules import VIbCReg
 
 
 class VIbCRegLight(LightningModule):
