@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from torch import Tensor, relu
+from torch import Tensor, relu, nn
 from torch.nn import functional as F
 
 
@@ -12,8 +12,13 @@ def vibcreg_cov_loss(z1: Tensor, z2: Tensor) -> Tensor:
     fxf_cov_z1 = torch.mm(norm_z1.T, norm_z1)  # (feature * feature)
     fxf_cov_z2 = torch.mm(norm_z2.T, norm_z2)
     ind = np.diag_indices(fxf_cov_z1.shape[0])
-    fxf_cov_z1[ind[0], ind[1]] = torch.zeros(fxf_cov_z1.shape[0]).to(norm_z1.get_device())
-    fxf_cov_z2[ind[0], ind[1]] = torch.zeros(fxf_cov_z2.shape[0]).to(norm_z1.get_device())
+    dev = norm_z1.get_device()
+    if dev >= 0:
+        zer = torch.zeros(fxf_cov_z1.shape[0], device=dev)
+    else:
+        zer = torch.zeros(fxf_cov_z1.shape[0])
+    fxf_cov_z1[ind[0], ind[1]] = zer
+    fxf_cov_z2[ind[0], ind[1]] = zer
     cov_loss = (fxf_cov_z1 ** 2).mean() + (fxf_cov_z2 ** 2).mean()
     return cov_loss
 
@@ -25,8 +30,13 @@ def vicreg_cov_loss(z1: Tensor, z2: Tensor) -> Tensor:
     cov_z1 = torch.mm(z1.T, z1) / (N - 1)
     cov_z2 = torch.mm(z2.T, z2) / (N - 1)
     ind = np.diag_indices(cov_z1.shape[0])
-    cov_z1[ind[0], ind[1]] = torch.zeros(cov_z1.shape[0], device=z1.get_device())  # off-diagonal(..)
-    cov_z2[ind[0], ind[1]] = torch.zeros(cov_z2.shape[0], device=z1.get_device())  # off-diagonal(..)
+    dev = z1.get_device()
+    if dev >= 0:
+        zer = torch.zeros(cov_z1.shape[0], device=dev)
+    else:
+        zer = torch.zeros(cov_z1.shape[0])
+    cov_z1[ind[0], ind[1]] = zer
+    cov_z2[ind[0], ind[1]] = zer
     cov_loss = (cov_z1 ** 2).sum() / D + (cov_z2 ** 2).sum() / D
     return cov_loss
 
@@ -92,11 +102,13 @@ def vibcreg_var_loss(z1: Tensor, z2: Tensor) -> Tensor:
 
 
 class VIbCRegLoss(nn.Module):
-    def __init__(self, lambda_vibcreg: float = 25., mu_vibcreg: float = 25., nu_vibcreg: float = 200.):
+    def __init__(self, lambda_vibcreg: float = 25., mu_vibcreg: float = 25., nu_vibcreg: float = 200.,
+                 loss_type_vibcreg: str = "mse"):
         super(VIbCRegLoss, self).__init__()
         self._lambda = lambda_vibcreg
         self._mu = mu_vibcreg
         self._nu = nu_vibcreg
+        self.loss_type_vibcreg = loss_type_vibcreg
 
     def forward(self, z1: Tensor, z2: Tensor) -> Tensor:
         sim_loss = vibcreg_invariance_loss(z1, z2, self.loss_type_vibcreg)

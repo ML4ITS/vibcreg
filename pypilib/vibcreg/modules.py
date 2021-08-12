@@ -26,6 +26,8 @@ class Projector(nn.Module):
         super().__init__()
 
         # define layers
+        self.n_channels_enc = last_channels_enc
+        self.n_out_dims = proj_out
         self.linear1 = nn.Linear(last_channels_enc, proj_hid)
         self.nl1 = normalization_layer(norm_layer_type_proj, proj_hid, dim=2)
         self.linear2 = nn.Linear(proj_hid, proj_hid)
@@ -45,18 +47,21 @@ class VIbCReg(nn.Module):
     def __init__(self, encoder: Callable, last_channels_enc: int,
                  proj_hid_vibcreg: int = 4096,
                  proj_out_vibcreg: int = 4096,
-                 norm_layer_type_proj_vibcreg: str = "BatchNorm",
-                 add_IterN_at_the_last_in_proj_vibcreg: bool = True):
+                 norm_layer_type_proj_vibcreg: str = "BatchNorm"):
         super().__init__()
+        self.encoder_out_dim = last_channels_enc
         self.encoder = encoder()
 
-        self.projector = Projector(last_channels_enc, proj_hid_vibcreg, proj_out_vibcreg, norm_layer_type_proj_vibcreg, add_IterN_at_the_last_in_proj_vibcreg)
+        self.projector = Projector(last_channels_enc, proj_hid_vibcreg, proj_out_vibcreg, norm_layer_type_proj_vibcreg)
 
-    def forward(self, x1: Tensor, x2: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor) -> Tensor:
         """
         :param x1: augmented view 1
         :param x2: augmented view 2
         """
-        y1, y2 = self.encoder(x1), self.encoder(x2)  # (batch_size * feature_size)
-        z1, z2 = self.projector(y1), self.projector(y2)
-        return z1, z2
+        y = self.encoder(x)
+        z = self.projector(y)
+        return z
+        # y1, y2 = self.encoder(x1), self.encoder(x2)  # (batch_size * feature_size)
+        # z1, z2 = self.projector(y1), self.projector(y2)
+        # return z1, z2

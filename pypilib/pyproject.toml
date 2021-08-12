@@ -6,10 +6,12 @@ authors = ["ErlendA <erlend.aune.1983@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.8"
 torch = "^1.9"
 torchvision = "*"
 numpy = "*"
+einops = "*"
+pytorch-lightning = "*"
 
 [tool.poetry.dev-dependencies]
 
