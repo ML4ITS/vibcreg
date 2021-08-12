@@ -1,0 +1,15 @@
+
+from distutils.core import setup
+
+setup(name='vibcreg',
+      version='0.1',
+      description='Functions to use vibcreg for representation learning.',
+      author='Erlend Aune & Daesoo Lee',
+      author_email='erlend.aune.1983@gmail.com',
+      url='https://github.com/ML4ITS/vibcreg.git',
+      packages=['vibcreg', "vibcreg.losses"],
+      install_requires = ['torch>=1.9',
+                          "numpy",
+                          "torchvision"],
+      license_files = ('LICENSE',)
+     )
