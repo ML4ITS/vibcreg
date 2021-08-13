@@ -1,4 +1,3 @@
-
 from functools import partial
 
 import torch
@@ -16,16 +15,23 @@ from vibcreg.losses import VIbCRegLoss
 from vibcreg.modules import VIbCReg
 
 
+def encoder():
+    resnet = models.resnet18(pretrained=False)
+    enc = nn.Sequential(*[layer for layer in resnet.children()][:-1],  # so that the GAP layer can be the last.
+                        nn.Flatten(start_dim=1))  # squeeze the empty dims
+    return enc
+
+
 class VIbCRegLight(LightningModule):
-    def __init__(self,):
+    def __init__(self, ):
         super().__init__()
-        self.vibcreg = VIbCReg(partial(models.resnet18, pretrained=False), 1000)
+        self.vibcreg = VIbCReg(encoder, 512)
         self.augs = transforms.Compose([RandomResizedCrop(32, (0.5, 0.9)),
-                                   RandomHorizontalFlip(),
-                                   RandomGrayscale(0.5),
-                                   RandomApply([ColorJitter(0.4, 0.4, 0.2, 0.1)], p=0.5),
-                                   RandomSolarize(threshold=0.8, p=0.1),
-                                   Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+                                        RandomHorizontalFlip(),
+                                        RandomGrayscale(0.5),
+                                        RandomApply([ColorJitter(0.4, 0.4, 0.2, 0.1)], p=0.5),
+                                        RandomSolarize(threshold=0.8, p=0.1),
+                                        Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
         self.criterion = VIbCRegLoss()
 
     def forward(self, x: Tensor) -> Tensor:
@@ -48,7 +54,7 @@ class LinearEval(LightningModule):
         self.encoder = encoder
         for par in self.encoder.parameters():
             par.requires_grad = False
-        self.class_head = nn.Linear(1000, 10)
+        self.class_head = nn.Linear(512, 10)
         self.criterion = nn.CrossEntropyLoss()
         self.transform = Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 
@@ -77,17 +83,17 @@ if __name__ == "__main__":
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                             download=True, transform=transform)
     trainloader = DataLoader(trainset, batch_size=batch_size,
-                                              shuffle=True, num_workers=2)
+                             shuffle=True, num_workers=2)
 
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                            download=True, transform=transform)
 
     testloader = DataLoader(testset, batch_size=batch_size,
-                                             shuffle=False, num_workers=2)
+                            shuffle=False, num_workers=2)
 
     combined_dataset = ConcatDataset([trainset, testset])
     combined_loader = DataLoader(combined_dataset, batch_size=batch_size,
-                                shuffle=True, num_workers=2)
+                                 shuffle=True, num_workers=2)
 
     classes = ('plane', 'car', 'bird', 'cat',
                'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
