@@ -14,14 +14,15 @@ class EvaluatorUCR(Evaluator):
         criterion = nn.CrossEntropyLoss()
         return criterion
 
-    def _clf_in_size(self, framework_type, **kwargs) -> int:
-        if framework_type == 'cpc':
-            in_size = self.rl_model.module.ar.ar.input_size
-        elif framework_type == "apc":
-            better_context_kind_apc = kwargs.get("better_context_kind_apc", None)
+    def _clf_in_size(self) -> int:
+        if self.framework_type == 'cpc':
+            in_size = self.config_framework.get("enc_hid_channels_cpc", None)
+        elif self.framework_type == "apc":
+            better_context_kind_apc = self.config_framework.get("better_context_kind_apc", None)
             mul = len(better_context_kind_apc.split("+"))
             in_size = self.encoder.module.rnn.hidden_size * mul
-        else:  # if `encoder` is `ResNet1D`
+        else:
+            # if `encoder` is `ResNet1D`.
             in_size = self.encoder.module.res_blocks[-1].conv_1x1.out_channels
         return in_size
 

@@ -16,14 +16,15 @@ class EvaluatorPTB_XL(Evaluator):
         criterion = nn.BCEWithLogitsLoss()
         return criterion
 
-    def _clf_in_size(self, framework_type, **kwargs) -> int:
-        if framework_type == 'cpc':
-            in_size = self.rl_model.module.ar.ar.input_size
-        elif framework_type == "apc":
-            better_context_kind_apc = kwargs.get("better_context_kind_apc", None)
+    def _clf_in_size(self) -> int:
+        if self.framework_type == 'cpc':
+            in_size = self.config_framework.get("enc_hid_channels_cpc", None)
+        elif self.framework_type == "apc":
+            better_context_kind_apc = self.config_framework.get("better_context_kind_apc", None)
             mul = len(better_context_kind_apc.split("+"))
             in_size = self.encoder.module.rnn.hidden_size * mul
-        else:  # if `encoder` is `ResNet1D`
+        else:
+            # if `encoder` is `ResNet1D`.
             in_size = self.encoder.module.res_blocks[-1].conv_1x1.out_channels
         return in_size
 
@@ -67,7 +68,7 @@ class EvaluatorPTB_XL(Evaluator):
             self.classifier.eval()
 
     @torch.no_grad()
-    def _compute_test_macroAUC(self, subseq_len, **kwargs):
+    def _compute_test_macroAUC(self, subseq_len):
         """
         References:
         [1] Scikit-learn, "Plot ROC curves for the multilabel problem" (https://scikit-learn.org/stable/auto_examples/model_selection/plot_roc.html#sphx-glr-auto-examples-model-selection-plot-roc-py)
@@ -126,10 +127,10 @@ class EvaluatorPTB_XL(Evaluator):
         roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
 
         # confusion matrix
-        self._log_confusion_matrix(labels, cls_preds, **kwargs)
+        self._log_confusion_matrix(labels, cls_preds)
         return roc_auc["macro"]
 
-    def _log_confusion_matrix(self, y_test, y_pred, tsne_analysis_log_epochs, **kwargs):
+    def _log_confusion_matrix(self, y_test, y_pred, tsne_analysis_log_epochs):
         """
         [1] Stackoverflow, https://stackoverflow.com/questions/62722416/plot-confusion-matrix-for-multilabel-classifcation-python
         """

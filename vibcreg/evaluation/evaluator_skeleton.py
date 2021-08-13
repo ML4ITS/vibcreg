@@ -6,14 +6,9 @@ import wandb
 from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
 
-from vibcreg.frameworks.apc import APC
-from vibcreg.frameworks.barlow_twins import BarlowTwins
-from vibcreg.frameworks.cpc import CPC
-from vibcreg.frameworks.rand_init import RandInit
-from vibcreg.frameworks.simsiam import SimSiam
-from vibcreg.frameworks.vibcreg_ import VIbCReg
 from vibcreg.lr_scheduler.cosine_annealing_lr import CosineAnnealingLR
 from vibcreg.normalization.iter_norm import IterNorm
+from vibcreg.wrapper.model_building_wrapper import ModelBuilder
 
 
 def update_config(cf, **kwargs):
@@ -112,26 +107,29 @@ class Evaluator(ABC):
     """
     It is used for both 'linear evaluation' and 'fine-tuning evaluation'.
     """
-    def __init__(self, cf, train_data_loader, val_data_loader, test_data_loader, **kwargs):
-        self.cf = cf
+    def __init__(self, config_dataset, config_framework, config_eval,
+                 train_data_loader, val_data_loader, test_data_loader,
+                 evaluation_type, loading_checkpoint_fname, device_ids, use_wandb,
+                 **kwargs):
+        self.config_dataset = config_dataset
+        self.config_framework = config_framework
+        self.config_eval = config_eval
         self.train_data_loader = train_data_loader
         self.val_data_loader = val_data_loader
         self.test_data_loader = test_data_loader
+        self.evaluation_type = evaluation_type
+        self.loading_checkpoint_fname = loading_checkpoint_fname
+        self.device_ids = device_ids
+        self.device = device_ids[0]
+        self.use_wandb = use_wandb
 
         # params
-        self.project_name = cf.get("project_name", None)
-        self.evaluation_type = cf.get("evaluation_type", None)
-        self.device_ids = cf.get("device_ids", None)
-        self.dataset_name = cf.get("dataset_name", None)
-        self.framework_type = cf.get("framework_type", None)
-        self.use_wandb = cf.get("use_wandb", None)
-        self.loading_checkpoint_fname = cf.get("loading_checkpoint_fname", None)
-
+        self.framework_type = self.config_framework.get("framework_type", None)
+        self.dataset_name = self.config_dataset.get("dataset_name", None)
         self.fine_tune = self._set_fine_tune()
         self.criterion = self._set_criterion()
 
         self.encoder = None
-        self.rl_model = None
         self.ar_cpc = None
         self.classifier = None
         self.wb = None
@@ -171,42 +169,37 @@ class Evaluator(ABC):
         for param in model.parameters():
             param.requires_grad = False
 
-    def load_model(self, encoder):
-        # load
+    def load_encoder(self) -> None:
+        """
+        load `self.encoder` internally.
+        """
         if self.framework_type == "supervised":
-            self.encoder = encoder
+            config_framework_ = self.config_framework.copy()
+            config_framework_["backbone_type"] = "resnet1d"
+            model_builder = ModelBuilder(self.config_dataset, config_framework_, self.device_ids, self.use_wandb)
+            self.encoder = model_builder.build_encoder()
             self.encoder = nn.DataParallel(self.encoder, device_ids=self.device_ids)
         else:
-            if self.framework_type == "rand_init":
-                self.rl_model = RandInit(encoder)
-            elif (self.framework_type == "vibcreg") or (self.framework_type == "vbibcreg"):
-                self.rl_model = VIbCReg(encoder, encoder.last_channels_enc, **self.cf)
-            elif self.framework_type == "barlow_twins":
-                self.rl_model = BarlowTwins(encoder, encoder.last_channels_enc, **self.cf)
-            elif self.framework_type == "simsiam":
-                self.rl_model = SimSiam(encoder, encoder.last_channels_enc, **self.cf)
-            elif self.framework_type == "cpc":
-                self.rl_model = CPC(encoder, **self.cf)
-                self.ar_cpc = nn.DataParallel(self.rl_model.ar, device_ids=self.device_ids)
-            elif self.framework_type == "apc":
-                self.rl_model = APC(encoder, **self.cf)
-            else:
-                raise ValueError("invalid `framework_type`")
+            # build model (encoder + SSL framework)
+            model_builder = ModelBuilder(self.config_dataset, self.config_framework, self.device_ids, self.use_wandb)
+            encoder = model_builder.build_encoder()
+            rl_model, _ = model_builder.build_model(encoder, apply_data_parallel=False)
 
+            # load
             checkpoint = torch.load(self.loading_checkpoint_fname)
-            self.rl_model.load_state_dict(checkpoint['model_state_dict'])
-            self.encoder = nn.DataParallel(self.rl_model.encoder, device_ids=self.device_ids)
+            rl_model.load_state_dict(checkpoint['model_state_dict'])
+            self.encoder = nn.DataParallel(rl_model.encoder, device_ids=self.device_ids)
             self._freeze(self.encoder) if not self.fine_tune else None
 
     @abstractmethod
-    def _clf_in_size(self, **kwargs) -> int:
+    def _clf_in_size(self) -> int:
         """
         get an input size of a classification head.
         """
         if self.framework_type == 'cpc':
-            in_size = self.rl_model.module.ar.ar.input_size
+            in_size = self.config_framework.get("enc_hid_channels_cpc", None)
         elif self.framework_type == "apc":
-            better_context_kind_apc = kwargs.get("better_context_kind_apc", None)
+            better_context_kind_apc = self.config_framework.get("better_context_kind_apc", None)
             mul = len(better_context_kind_apc.split("+"))
             in_size = self.encoder.module.rnn.hidden_size * mul
         else:
@@ -223,38 +216,47 @@ class Evaluator(ABC):
         """
         pass
 
-    def build_classifier(self, **kwargs):
-        in_size = self._clf_in_size(**kwargs)
+    def build_classifier(self) -> None:
+        """
+        build `self.classifier` internally.
+        """
+        in_size = self._clf_in_size()
         out_size = self._clf_out_size()
 
         # build a classifier
         self.classifier = nn.Sequential(nn.Linear(in_size, out_size))
         self.classifier = nn.DataParallel(self.classifier, device_ids=self.device_ids)
 
-    def init_wandb(self, **kwargs):
+    def init_wandb(self):
         # set `run_name`
         run_name = f"{self.framework_type}"
         if self.dataset_name == "UCR":
-            ucr_dataset_name = kwargs.get("ucr_dataset_name", None)
+            ucr_dataset_name = self.config_dataset.get("ucr_dataset_name", None)
             run_name = f"{ucr_dataset_name}-" + run_name
 
         if self.loading_checkpoint_fname:
             ep = int(self.loading_checkpoint_fname.split("ep_")[1].split(".pth")[0])
             run_name = run_name + f"-ep_{ep}"
 
-        if self.fine_tune and kwargs.get("train_data_ratio", None):
-            train_data_ratio = kwargs.get("train_data_ratio", None) / 8 * 1000  # 8: 8 training folds; 1000 to make it percentage.
+        if self.fine_tune and (self.dataset_name == "UCR"):
+            train_data_ratio = self.config_dataset.get("train_data_ratio", None) / 8 * 1000  # 8: 8 training folds; 1000 to make it percentage.
             run_name = run_name + f"-{train_data_ratio}"
 
         # set `project_name`
+        project_name = self.config_framework["project_name"].get(self.dataset_name, "")
         if not self.fine_tune:
-            project_name = self.project_name + "-LE"  # linear evaluation
+            project_name += "-LE"  # linear evaluation
         else:
-            project_name = self.project_name + "-FtE"  # fine-tuning evaluation
+            project_name += "-FtE"  # fine-tuning evaluation
 
         # initialize wandb
         if self.use_wandb:
-            self.wb = wandb.init(project=project_name, config=self.cf, name=run_name)
+            # combine configs
+            config = {}
+            for cf in [self.config_dataset, self.config_framework, self.config_eval]:
+                for k, v in cf.items():
+                    config[k] = v
+            self.wb = wandb.init(project=project_name, config=config, name=run_name)
         else:
             self.wb = None
 
@@ -267,23 +269,25 @@ class Evaluator(ABC):
     def finish_wandb(self):
         self.wb.finish() if self.use_wandb else None
 
-    def setup_lr_scheduler(self, optimizer, kind: str, batch_size: int, n_epochs_ev: dict, **kwargs):
+    def setup_lr_scheduler(self, optimizer, kind: str, **kwargs):
+        batch_size = self.config_dataset["batch_size"]
+        n_epochs_ev = self.config_eval["n_epochs_ev"][self.evaluation_type]
         if kind == "CosineAnnealingLR":
             train_dataset_size = kwargs.get("train_dataset_size", None)
             n_gpus = len(self.device_ids)
-            self.lr_scheduler = CosineAnnealingLR(optimizer, train_dataset_size, n_gpus, batch_size, n_epochs_ev[self.evaluation_type]).get_lr_scheduler()
+            self.lr_scheduler = CosineAnnealingLR(optimizer, train_dataset_size, n_gpus, batch_size, n_epochs_ev).get_lr_scheduler()
         else:
             raise ValueError("unavailable name for `lr_scheduler`.")
 
-    def trainable_params(self, lr_clf_ev: float, lr_enc_ev: float, **kwargs):
+    def trainable_params(self) -> list:
         """
         returns 'trainable parameters'
         """
         if (self.framework_type == "supervised") or (self.fine_tune is True):
-            params = [{"params": self.classifier.parameters(), "lr": lr_clf_ev},
-                      {"params": self.encoder.parameters(), "lr": lr_enc_ev}]
+            params = [{"params": self.classifier.parameters(), "lr": self.config_eval["lr_clf_ev"]},
+                      {"params": self.encoder.parameters(), "lr": self.config_eval["lr_enc_ev"]}]
         else:  # linear evaluation
-            params = [{"params": self.classifier.parameters(), "lr": lr_enc_ev}]
+            params = [{"params": self.classifier.parameters(), "lr": self.config_eval["lr_clf_ev"]}]
         return params
 
     @abstractmethod
@@ -293,33 +297,31 @@ class Evaluator(ABC):
         """
         pass
 
-    def _out_from_encoder_classifier(self, x, **kwargs):
+    def _out_from_encoder_classifier(self, x):
         """
         returns output from an encoder-classifier.
         """
         y = self.encoder(x)
         if self.framework_type == "apc":
-            better_context_kind_apc = kwargs.get("better_context_kind_apc", None)
+            better_context_kind_apc = self.config_framework.get("better_context_kind_apc", None)
             y = self.encoder.module.compute_better_context(y, kind=better_context_kind_apc)
 
         out = self.classifier(y)  # (batch * 1)
         return out
 
-    def _propagate_ev(self, data_loader: DataLoader, optimizer, status: str, **kwargs):
+    def _propagate_ev(self, data_loader: DataLoader, optimizer, status: str):
         """
         :param status: train / validate / test
         """
-        device = self.device_ids[0]
-
         loss, step = 0., 0
         for subx_view1, subx_view2, label in data_loader:  # subx: (batch * n_channels * subseq_len)
             optimizer.zero_grad()
             label = self._adjust_label(label)
 
-            out = self._out_from_encoder_classifier(subx_view1.to(device), **kwargs)
+            out = self._out_from_encoder_classifier(subx_view1.to(self.device))
 
             # loss
-            loss = self.criterion(out, label.to(device))
+            loss = self.criterion(out, label.to(self.device))
 
             # weight update
             if status == "train":
@@ -333,13 +335,13 @@ class Evaluator(ABC):
         return loss / step
 
     @torch.no_grad()
-    def _validate_ev(self, optimizer, **kwargs):
-        val_loss = self._propagate_ev(self.val_data_loader, optimizer, "validate", **kwargs)
+    def _validate_ev(self, optimizer):
+        val_loss = self._propagate_ev(self.val_data_loader, optimizer, "validate")
         return val_loss
 
     @torch.no_grad()
-    def _test_ev(self, optimizer, **kwargs):
-        test_loss = self._propagate_ev(self.test_data_loader, optimizer, "test", **kwargs)
+    def _test_ev(self, optimizer):
+        test_loss = self._propagate_ev(self.test_data_loader, optimizer, "test")
         return test_loss
 
     @staticmethod
@@ -351,7 +353,7 @@ class Evaluator(ABC):
             child.training = True if isinstance(child, nn.BatchNorm1d) or isinstance(child, nn.BatchNorm2d) or isinstance(child, IterNorm) else False
 
     @abstractmethod
-    def _train_eval_setting_during_fit(self, status):
+    def _train_eval_setting_during_fit(self, status: str) -> None:
         """
         set the .train() / .eval() settings during fit(..) for `self.encoder` and `self.classifier`.
         """
@@ -369,18 +371,16 @@ class Evaluator(ABC):
         elif (status == "validate") or (status == "test"):
             self.encoder.eval()
             if self.framework_type == "apc":
-                self.encoder.train()
+                self.encoder.train()  # throws an error otherwise
             self.classifier.eval()
 
     @torch.no_grad()
-    def _compute_test_acc(self, **kwargs):
-        device = self.device_ids[0]
-
+    def _compute_test_acc(self):
         test_acc, step = 0., 0
         for subx_view1, subx_view2, label in self.test_data_loader:  # subx: (batch * n_channels * subseq_len)
             label = self._adjust_label(label)
 
-            out = self._out_from_encoder_classifier(subx_view1.to(device), **kwargs)
+            out = self._out_from_encoder_classifier(subx_view1.to(self.device))
 
             # compute `test_acc`
             out = torch.argmax(out, dim=1).detach().cpu()
@@ -390,34 +390,35 @@ class Evaluator(ABC):
 
         return test_acc / step
 
-    def _compute_test_macroAUC(self, subseq_len, **kwargs):
+    def _compute_test_macroAUC(self, subseq_len: int):
         """
         defined in `evaluator_ptbxl.py`
         """
         pass
 
-    def fit(self, optimizer, n_epochs_ev: dict, **kwargs):
+    def fit(self, optimizer):
+        n_epochs_ev = self.config_eval["n_epochs_ev"][self.evaluation_type]
         wb_logger = WBLogger() if self.use_wandb else None
 
-        for epoch in range(1, n_epochs_ev[self.evaluation_type]):
+        for epoch in range(1, n_epochs_ev):
             self.epoch = epoch
 
             # loss
             self._train_eval_setting_during_fit("train")
-            train_loss = self._propagate_ev(self.train_data_loader, optimizer, "train", **kwargs)
+            train_loss = self._propagate_ev(self.train_data_loader, optimizer, "train")
 
             # validate & test
             self._train_eval_setting_during_fit("validate")
-            val_loss = self._validate_ev(optimizer, **kwargs)
+            val_loss = self._validate_ev(optimizer)
             self._train_eval_setting_during_fit("test")
-            test_loss = self._test_ev(optimizer, **kwargs)
+            test_loss = self._test_ev(optimizer)
 
             # evaluation (test accuracy | test macro AUC)
             test_acc, test_macroAUC = None, None
             if self.dataset_name == "PTB-XL":
-                test_macroAUC = self._compute_test_macroAUC(**kwargs)
+                test_macroAUC = self._compute_test_macroAUC(self.config_dataset["subseq_len"])
             else:
-                test_acc = self._compute_test_acc(**kwargs)
+                test_acc = self._compute_test_acc()
 
             # status log
             if self.use_wandb:

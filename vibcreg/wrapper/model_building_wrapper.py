@@ -12,10 +12,11 @@ from vibcreg.frameworks.vibcreg_ import VIbCReg, Utility_VIbCReg
 
 
 class ModelBuilder(object):
-    def __init__(self, args, config_dataset, config_framework):
-        self.args = args
+    def __init__(self, config_dataset, config_framework, device_ids, use_wandb):
         self.config_dataset = config_dataset
         self.config_framework = config_framework
+        self.device_ids = device_ids
+        self.use_wandb = use_wandb
 
     def build_encoder(self):
         backbone_type = self.config_framework["backbone_type"]
@@ -29,36 +30,49 @@ class ModelBuilder(object):
             raise ValueError("invalid `backbone_type`")
         return encoder
 
-    def build_model(self, encoder):
+    def build_model(self, encoder, apply_data_parallel=True):
         """
         :param encoder: (backbone) encoder
+        :param apply_data_parallel: whether to apply `nn.DataParallel(..)`
         :return: `rl_model`, `rl_util`
 
         model = encoder + (SSL) framework
         """
         # framework_cf = framework_config
-        device_ids = self.args.device_ids
+        device_ids = self.device_ids
         framework_type = self.config_framework["framework_type"]
-        use_wandb = self.args.use_wandb
+        use_wandb = self.use_wandb
 
         # framework
         if framework_type == "rand_init":
-            rl_model = nn.DataParallel(RandInit(encoder), device_ids=device_ids)
+            rl_model = RandInit(encoder)
+            if apply_data_parallel:
+                rl_model = nn.DataParallel(rl_model, device_ids=device_ids)
             rl_util = Utility_RandInit(rl_model=rl_model, device_ids=device_ids, use_wandb=use_wandb, **self.config_framework)
         elif (framework_type == "vibcreg") or (framework_type == "vbibcreg"):
-            rl_model = nn.DataParallel(VIbCReg(encoder, encoder.last_channels_enc, **self.config_framework), device_ids=device_ids)
+            rl_model = VIbCReg(encoder, encoder.last_channels_enc, **self.config_framework)
+            if apply_data_parallel:
+                rl_model = nn.DataParallel(rl_model, device_ids=device_ids)
             rl_util = Utility_VIbCReg(rl_model=rl_model, device_ids=device_ids, use_wandb=use_wandb, batch_size=self.config_dataset["batch_size"], **self.config_framework)
         elif framework_type == "barlow_twins":
-            rl_model = nn.DataParallel(BarlowTwins(encoder, encoder.last_channels_enc, **self.config_framework), device_ids=device_ids)
+            rl_model = BarlowTwins(encoder, encoder.last_channels_enc, **self.config_framework)
+            if apply_data_parallel:
+                rl_model = nn.DataParallel(rl_model, device_ids=device_ids)
             rl_util = Utility_BarlowTwins(rl_model=rl_model, device_ids=device_ids, use_wandb=use_wandb, **self.config_framework)
         elif framework_type == "simsiam":
-            rl_model = nn.DataParallel(SimSiam(encoder, encoder.last_channels_enc, **self.config_framework), device_ids=device_ids)
+            rl_model = SimSiam(encoder, encoder.last_channels_enc, **self.config_framework)
+            if apply_data_parallel:
+                rl_model = nn.DataParallel(rl_model, device_ids=device_ids)
             rl_util = Utility_SimSiam(rl_model=rl_model, device_ids=device_ids, use_wandb=use_wandb, **self.config_framework)
         elif framework_type == "cpc":
-            rl_model = nn.DataParallel(CPC(encoder, **self.config_framework), device_ids=device_ids)
+            rl_model = CPC(encoder, **self.config_framework)
+            if apply_data_parallel:
+                rl_model = nn.DataParallel(rl_model, device_ids=device_ids)
             rl_util = Utility_CPC(rl_model=rl_model, device_ids=device_ids, use_wandb=use_wandb, **self.config_framework)
         elif framework_type == "apc":
-            rl_model = nn.DataParallel(APC(encoder, **self.config_framework), device_ids=device_ids)
+            rl_model = APC(encoder, **self.config_framework)
+            if apply_data_parallel:
+                rl_model = nn.DataParallel(rl_model, device_ids=device_ids)
             rl_util = Utility_APC(rl_model=rl_model, device_ids=device_ids, use_wandb=use_wandb, **self.config_framework)
         else:
             raise ValueError("invalid `framework_type`")

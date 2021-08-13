@@ -34,7 +34,7 @@ if __name__ == "__main__":
     train_data_loader, val_data_loader, test_data_loader = build_data_pipeline(config_dataset)
 
     # build model (encoder + SSL framework)
-    model_builder = ModelBuilder(args, config_dataset, config_framework)
+    model_builder = ModelBuilder(config_dataset, config_framework, args.device_ids, args.use_wandb)
     encoder = model_builder.build_encoder()
     rl_model, rl_util = model_builder.build_model(encoder)
 
