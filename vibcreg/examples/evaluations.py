@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 from torch.optim import AdamW
 
 from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
-from vibcreg.evaluation.evaluator_ucr import EvaluatorUCR
+from vibcreg.wrapper.evaluator_building_wrapper import EvaluatorBuilder
 
 
 def load_args():
@@ -36,9 +36,10 @@ if __name__ == "__main__":
     train_data_loader, val_data_loader, test_data_loader = build_data_pipeline(config_dataset)
 
     # evaluator
-    evaluator = EvaluatorUCR(config_dataset=config_dataset, config_framework=config_framework, config_eval=config_eval,
-                             train_data_loader=train_data_loader, val_data_loader=val_data_loader, test_data_loader=test_data_loader,
-                             evaluation_type=args.evaluation_type, loading_checkpoint_fname=args.loading_checkpoint_fname, device_ids=args.device_ids, use_wandb=args.use_wandb)
+    evaluator_builder = EvaluatorBuilder(config_dataset, config_framework, config_eval,
+                                         train_data_loader, val_data_loader, test_data_loader,
+                                         args)
+    evaluator = evaluator_builder.build()
 
     # load encoder
     evaluator.load_encoder()

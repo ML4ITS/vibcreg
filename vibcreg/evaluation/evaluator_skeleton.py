@@ -174,9 +174,8 @@ class Evaluator(ABC):
         load `self.encoder` internally.
         """
         if self.framework_type == "supervised":
-            config_framework_ = self.config_framework.copy()
-            config_framework_["backbone_type"] = "resnet1d"
-            model_builder = ModelBuilder(self.config_dataset, config_framework_, self.device_ids, self.use_wandb)
+            print("`supervised` doesn't load any model.")
+            model_builder = ModelBuilder(self.config_dataset, self.config_framework, self.device_ids, self.use_wandb)
             self.encoder = model_builder.build_encoder()
             self.encoder = nn.DataParallel(self.encoder, device_ids=self.device_ids)
         else:
@@ -234,7 +233,7 @@ class Evaluator(ABC):
             ucr_dataset_name = self.config_dataset.get("ucr_dataset_name", None)
             run_name = f"{ucr_dataset_name}-" + run_name
 
-        if self.loading_checkpoint_fname:
+        if self.loading_checkpoint_fname and (self.framework_type != "supervised"):
             ep = int(self.loading_checkpoint_fname.split("ep_")[1].split(".pth")[0])
             run_name = run_name + f"-ep_{ep}"
 

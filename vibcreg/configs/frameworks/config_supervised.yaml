@@ -1,0 +1,32 @@
+# framework utility (belongs to the abstract class: `Utility_SSL`)
+framework_type: "supervised"
+
+# backbone-encoder
+backbone_type: "resnet1d"
+n_blocks_enc:
+  - 1
+  - 1
+  - 1
+  - 1
+out_channels_enc: 64
+kernel_size_enc: 3
+norm_layer_type_enc: "BatchNorm"
+dropout_rate_enc: 0.
+
+# train
+lr: 0.001
+n_epochs: 100
+weight_decay: 0.00001
+
+# log & validation/test
+project_name:
+  UCR: "UCR"
+  PTB-XL: "PTB-XL"
+n_neighbors_kNN:
+  UCR: 5
+  PTB-XL: 3
+n_jobs_for_kNN: 10
+model_saving_epochs:
+  - 2
+  - 10
+  - 100

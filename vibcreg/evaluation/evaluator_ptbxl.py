@@ -127,7 +127,7 @@ class EvaluatorPTB_XL(Evaluator):
         roc_auc["macro"] = auc(fpr["macro"], tpr["macro"])
 
         # confusion matrix
-        self._log_confusion_matrix(labels, cls_preds)
+        # self._log_confusion_matrix(labels, cls_preds, tsne_analysis_log_epochs)
         return roc_auc["macro"]
 
     def _log_confusion_matrix(self, y_test, y_pred, tsne_analysis_log_epochs):
