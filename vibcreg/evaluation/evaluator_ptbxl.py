@@ -40,7 +40,7 @@ class EvaluatorPTB_XL(Evaluator):
         """
         y = self.encoder(x)
         if self.framework_type == "apc":
-            better_context_kind_apc = kwargs.get("better_context_kind_apc", None)
+            better_context_kind_apc = self.config_framework.get("better_context_kind_apc", None)
             y = self.encoder.module.compute_better_context(y, kind=better_context_kind_apc)
         elif self.framework_type == "cpc":
             y = y.mean(dim=2)  # [before] (batch * n_channels * reduced_seq_len); [after] (batch * n_channels)

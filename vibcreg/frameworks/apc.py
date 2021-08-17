@@ -51,10 +51,16 @@ class Utility_APC(Utility_SSL):
         self.n_pred_steps_apc = n_pred_steps_apc
         self.weight_on_pc_loss_apc = weight_on_pc_loss_apc
         self.better_context_kind_apc = better_context_kind_apc
-        self.in_channels_enc = self.rl_model.module.encoder.in_channels_enc
+        self.in_channels_enc = self._get_in_channels_enc()
 
         self.criterion_mse = torch.nn.MSELoss()
         # self.criterion_l1_loss = torch.nn.L1Loss()
+
+    def _get_in_channels_enc(self):
+        try:
+            return self.rl_model.module.encoder.in_channels_enc
+        except AttributeError:
+            return self.rl_model.encoder.in_channels_enc
 
     def wandb_watch(self):
         if self.use_wandb:
