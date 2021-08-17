@@ -158,6 +158,10 @@ class Utility_CPC(Utility_SSL):
         """
         self.rl_model.train() if status == "train" else self.rl_model.eval()
 
+        if (self.epoch == 1) and (status == "train") and ("RC" in data_loader.dataset.used_augmentations):
+            print("Note that `RC` (random crop) is disabled for CPC.")
+        data_loader.dataset.used_augmentations = [aug for aug in data_loader.dataset.used_augmentations if aug != "RC"]
+
         loss, step = 0., 0
         for subx_view1, subx_view2, label in data_loader:  # subx: (batch * n_channels * subseq_len)
             optimizer.zero_grad()

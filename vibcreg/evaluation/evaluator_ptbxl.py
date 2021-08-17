@@ -39,10 +39,11 @@ class EvaluatorPTB_XL(Evaluator):
         returns output from an encoder-classifier.
         """
         y = self.encoder(x)
-        if kwargs.get("framework_type") == "apc":
+        if self.framework_type == "apc":
             better_context_kind_apc = kwargs.get("better_context_kind_apc", None)
             y = self.encoder.module.compute_better_context(y, kind=better_context_kind_apc)
-
+        elif self.framework_type == "cpc":
+            y = y.mean(dim=2)  # [before] (batch * n_channels * reduced_seq_len); [after] (batch * n_channels)
         out = self.classifier(y)  # (batch * 1)
         return out
 
