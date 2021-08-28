@@ -1,0 +1,25 @@
+# data pipeline
+dataset_name: "PTB-XL"
+n_data_channels: 12
+train_fold:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+val_fold: 9
+test_fold: 10
+train_downsampling_rate: 1.
+sampling_rate: 100  # [Hz]
+batch_size: 256
+num_workers: 0
+
+# augmentations
+subseq_len: 250  # 2.5s * 100Hz
+used_augmentations:
+  - "RC"
+AmpR_rate: 0.3
+Vshift_rate: 0.5
