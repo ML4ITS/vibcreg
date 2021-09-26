@@ -2,6 +2,7 @@
 It provides a skeleton for the `Utility` classes of each SSL framework.
 There is no skeleton for a SSL framework since `torch.nn.Module` already provides it.
 """
+import os
 from abc import ABC, abstractmethod
 
 import matplotlib
@@ -244,6 +245,10 @@ class Utility_SSL(ABC):
         if epoch in model_saving_epochs:
             filename = f"checkpoint-{self.framework_type}-ep_{epoch}.pth"
             savepath = self.vibcreg_folder.joinpath("checkpoints", filename)
+
+            if not os.path.isdir(self.vibcreg_folder.joinpath("checkpoints")):
+                os.mkdir(self.vibcreg_folder.joinpath("checkpoints"))
+
             torch.save({'epoch': epoch,
                         'model_state_dict': self.rl_model.module.state_dict(),
                         'optimizer_state_dict': optimizer.state_dict(),
