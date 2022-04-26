@@ -11,6 +11,8 @@ from vibcreg.evaluation.evaluator_skeleton import Evaluator
 class EvaluatorPTB_XL(Evaluator):
     def __init__(self, **kwargs):
         super(EvaluatorPTB_XL, self).__init__(**kwargs)
+        self.is_tnc_used = self.config_dataset['is_tnc_used']
+        self.return_rc_dist = self.config_dataset['return_rc_dist']
 
     def _set_criterion(self):
         criterion = nn.BCEWithLogitsLoss()
@@ -79,7 +81,14 @@ class EvaluatorPTB_XL(Evaluator):
         # Collect the entire test data
         labels = torch.tensor([])  # (entire_batch * 71)
         cls_preds = torch.tensor([])  # (entire_batch * 71)
-        for subx_view1, subx_view2, label in self.test_data_loader:  # subx: (batch * n_channels * subseq_len)
+        for batch in self.test_data_loader:  # subx: (batch * n_channels * subseq_len)
+            if self.is_tnc_used:
+                subx_view1, subx_view2, subx_view3, label = batch
+            elif self.return_rc_dist:
+                subx_view1, subx_view2, label, rc_dist = batch
+            else:
+                subx_view1, subx_view2, label = batch
+
             labels = torch.cat((labels, label))
 
             if self.framework_type == 'cpc':

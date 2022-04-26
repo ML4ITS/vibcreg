@@ -4,6 +4,7 @@ VIbCReg: Variance Invariance better-Covariance Regularization
 Reference:
 [1] A. Bardes et al., 2021, "VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning"
 """
+import torch
 import torch.nn as nn
 import wandb
 from torch import relu
@@ -40,46 +41,47 @@ class Projector(nn.Module):
 
 
 class Predictor(nn.Module):
-    """
-    predictor from the MSF paper.
-    """
-    def __init__(self, proj_out_vibcreg):
+    def __init__(self, in_size, h_size, out_size):
         super(Predictor, self).__init__()
         # define layers
-        self.linear1 = nn.Linear(proj_out_vibcreg, proj_out_vibcreg)
-        self.nl1 = nn.BatchNorm1d(proj_out_vibcreg)
-        self.linear2 = nn.Linear(proj_out_vibcreg, proj_out_vibcreg)
+        self.linear1 = nn.Linear(in_size, h_size)
+        self.nl1 = nn.BatchNorm1d(h_size)
+        self.linear2 = nn.Linear(h_size, out_size)
 
     def forward(self, x):
         out = relu(self.nl1(self.linear1(x)))
-        out = self.linear2(out)
+        out = torch.sigmoid(self.linear2(out))
         return out
 
 
-class VIbCReg(nn.Module):
+class VIbCRegRCD(nn.Module):
     def __init__(self, encoder: ResNet1D, last_channels_enc: int,
                  proj_hid_vibcreg: int = 4096, proj_out_vibcreg: int = 4096, norm_layer_type_proj_vibcreg: str = "BatchNorm", add_IterN_at_the_last_in_proj_vibcreg: bool = True,
-                 use_predictor_msf: bool = False, **kwargs):
+                 **kwargs):
         super().__init__()
         self.encoder = encoder
-        self.use_predictor_msf = use_predictor_msf
-
         self.projector = Projector(last_channels_enc, proj_hid_vibcreg, proj_out_vibcreg, norm_layer_type_proj_vibcreg, add_IterN_at_the_last_in_proj_vibcreg)
-        if self.use_predictor_msf:
-            self.predictor = Predictor(proj_out_vibcreg)
+        self.predictor = Predictor(2*last_channels_enc, last_channels_enc, 1)
 
     def forward(self, x1, x2):
         """
         :param x1: augmented view 1
         :param x2: augmented view 2
         """
+        # vibcreg
         y1, y2 = self.encoder(x1), self.encoder(x2)  # (batch_size * feature_size)
         z1, z2 = self.projector(y1), self.projector(y2)
-        return y1, y2, z1, z2
+
+        # pretext task
+        ys = torch.cat((y1, y2), dim=1)
+        rcd_hat = self.predictor(ys)
+
+        return y1, y2, z1, z2, rcd_hat
 
 
-class Utility_VIbCReg(Utility_SSL):
-    def __init__(self, lambda_vibcreg=25, mu_vibcreg=25, nu_vibcreg=200, loss_type_vibcreg="mse", use_vicreg_FD_loss=False, **kwargs):
+class Utility_VIbCRegRCD(Utility_SSL):
+    def __init__(self, lambda_vibcreg=25, mu_vibcreg=25, nu_vibcreg=200,
+                 loss_type_vibcreg="mse", use_vicreg_FD_loss=False, **kwargs):
         """
         :param lambda_vibcreg: weight for the similarity (invariance) loss.
         :param mu_vibcreg: weight for the FcE (variance) loss
@@ -88,32 +90,18 @@ class Utility_VIbCReg(Utility_SSL):
         :param use_vicreg_FD_loss: if True, VICReg's FD loss is used instead of VIbCReg's.
         :param kwargs: params belonging to the `Utility_SSL` class.
         """
-        super(Utility_VIbCReg, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.lambda_vibcreg = lambda_vibcreg
         self.mu_vibcreg = mu_vibcreg
         self.nu_vibcreg = nu_vibcreg
         self.loss_type_vibcreg = loss_type_vibcreg
         self.use_vicreg_FD_loss = use_vicreg_FD_loss
-        self.weight_on_msfLoss = kwargs.get("weight_on_msfLoss", 0.)
-
-        self.amsf = None
-        self.use_predictor_msf = None
-        self.create_msf(**kwargs)
-
-    def create_msf(self, device_ids, batch_size, size_mb=1024, k_msf=2, tau_msf=0.99, use_EMAN_msf=False, use_predictor_msf=False, **kwargs):
-        proj_out_vibcreg = kwargs.get("proj_out_vibcreg", None)
-        if self.weight_on_msfLoss:
-            memory_bank = MemoryBank(size_mb, k_msf, device_ids, feature_size_msf=proj_out_vibcreg, batch_size=batch_size)
-            self.amsf = AddinMSF(memory_bank, tau_msf, use_EMAN_msf)
-            self.amsf.create_target_net(self.rl_model)
-            self.use_predictor_msf = use_predictor_msf
+        self.l2_loss = nn.MSELoss()
 
     def wandb_watch(self):
         if self.use_wandb:
             wandb.watch(self.rl_model.module.encoder)
             wandb.watch(self.rl_model.module.projector)
-            if self.weight_on_msfLoss and self.use_predictor_msf:
-                wandb.watch(self.rl_model.module.predictor)
 
     def status_log_per_iter(self, status, z, loss_hist: dict):
         loss_hist = {k + f'.{status}': v for k, v in loss_hist.items()}
@@ -130,24 +118,21 @@ class Utility_VIbCReg(Utility_SSL):
         self.rl_model.train() if status == "train" else self.rl_model.eval()
 
         loss, step = 0., 0
-        for subx_view1, subx_view2, label in data_loader:  # subx: (batch * n_channels * subseq_len)
+        for batch in data_loader:  # subx: (batch * n_channels * subseq_len)
+            subx_view1, subx_view2, label, rc_dist = batch
             optimizer.zero_grad()
 
-            y1, y2, z1, z2 = self.rl_model(subx_view1.to(self.device), subx_view2.to(self.device))
+            y1, y2, z1, z2, rcd_hat = self.rl_model(subx_view1.to(self.device), subx_view2.to(self.device))
 
+            # loss: vibcreg
             sim_loss = vibcreg_invariance_loss(z1, z2, self.loss_type_vibcreg)
             var_loss = vibcreg_var_loss(z1, z2)  # FcE loss
             cov_loss = vibcreg_cov_loss(z1, z2) if not self.use_vicreg_FD_loss else vicreg_cov_loss(z1, z2)  # FD loss
             L = self.lambda_vibcreg * sim_loss + self.mu_vibcreg * var_loss + self.nu_vibcreg * cov_loss
 
-            msf_loss = None
-            if self.weight_on_msfLoss:
-                self.amsf.update_target_net(self.rl_model)
-                z1_target, _ = self.amsf.target_net(subx_view1.to(self.device), subx_view2.to(self.device))
-                if self.weight_on_msfLoss and self.use_predictor_msf:
-                    z2 = self.rl_model.module.predictor(z2)
-                msf_loss = self.amsf.compute_loss(z_target=z1_target, z_online=z2)
-                L += self.weight_on_msfLoss * msf_loss
+            # loss: pretext task
+            rcd_loss = self.l2_loss(rc_dist.float().to(self.device), rcd_hat)
+            L += self.lambda_vibcreg * rcd_loss
 
             # weight update
             if status == "train":
@@ -160,12 +145,12 @@ class Utility_VIbCReg(Utility_SSL):
             step += 1
 
             # status log
-            # self.status_log_per_iter(status, y1, sim_loss=sim_loss, var_loss=var_loss, cov_loss=cov_loss, msf_loss=msf_loss)
             loss_hist = {}
             loss_hist['loss'] = L
             loss_hist['sim_loss'] = sim_loss
             loss_hist['var_loss'] = var_loss
             loss_hist['cov_loss'] = cov_loss
+            loss_hist['rcd_loss'] = rcd_loss
             self.status_log_per_iter(status, y1, loss_hist)
 
         if step == 0:

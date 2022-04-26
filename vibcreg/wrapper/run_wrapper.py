@@ -23,7 +23,7 @@ def run_ssl_for_rl(args, config_dataset, config_framework,
         # log: feature histogram, tsne-analysis, etc. on `test_data_loader`
         if epoch in args.tsne_analysis_log_epochs:
             rl_util.get_batch_of_representations(test_data_loader, dataset_name)  # stored internally
-            rl_util.log_feature_histogram()
+            # rl_util.log_feature_histogram()
             rl_util.log_tsne_analysis()
 
             if framework_type == "barlow_twins":

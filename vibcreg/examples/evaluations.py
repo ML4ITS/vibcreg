@@ -4,7 +4,7 @@ Run by using
 """
 
 from argparse import ArgumentParser
-from torch.optim import AdamW
+from torch.optim import Adam, AdamW
 
 from vibcreg.wrapper.data_pipeline_wrapper import load_hyper_param_settings, build_data_pipeline
 from vibcreg.wrapper.evaluator_building_wrapper import EvaluatorBuilder
@@ -12,9 +12,12 @@ from vibcreg.wrapper.evaluator_building_wrapper import EvaluatorBuilder
 
 def load_args():
     parser = ArgumentParser()
-    parser.add_argument('--config_dataset', type=str, help="Path to the dataset config.", default="vibcreg/configs/datasets/config_ucr.yaml")
-    parser.add_argument('--config_framework', type=str, help="Path to the framework config.", default="vibcreg/configs/frameworks/config_vibcreg.yaml")
-    parser.add_argument('--config_eval', type=str, help="Path to the evaluation config.", default="vibcreg/configs/evaluation/config_eval.yaml")
+    parser.add_argument('--config_dataset', type=str, help="Path to the dataset config.",
+                        default="vibcreg/configs/datasets/config_ucr.yaml")
+    parser.add_argument('--config_framework', type=str, help="Path to the framework config.",
+                        default="vibcreg/configs/frameworks/config_vibcreg.yaml")
+    parser.add_argument('--config_eval', type=str, help="Path to the evaluation config.",
+                        default="vibcreg/configs/evaluation/config_eval.yaml")
 
     parser.add_argument('--evaluation_type', default="linear_evaluation", help="linear_evaluation / fine_tuning_evaluation", type=str)
     parser.add_argument('--loading_checkpoint_fname', default="vibcreg/checkpoints/checkpoint-vibcreg-ep_100.pth")
@@ -32,8 +35,18 @@ if __name__ == "__main__":
     config_framework = load_hyper_param_settings(args.config_framework)
     config_eval = load_hyper_param_settings(args.config_eval)
 
+    # change of configs
+    config_dataset['ucr_dataset_name'] = 'ShapesAll'
+    config_dataset['subseq_len'] = 512
+    config_dataset['train_random_seed'] = 0
+    config_dataset['test_random_seed'] = 0
+    config_dataset['used_augmentations'] = ['AmpR', 'Vshift']
+
     # data pipeline
     train_data_loader, val_data_loader, test_data_loader = build_data_pipeline(config_dataset)
+    print('train_data_loader.datset.augs:', train_data_loader.dataset.used_augmentations)
+    print('val_data_loader.datset.augs:', val_data_loader.dataset.used_augmentations)
+    print('test_data_loader.datset.augs:', test_data_loader.dataset.used_augmentations)
 
     # evaluator
     evaluator_builder = EvaluatorBuilder(config_dataset, config_framework, config_eval,
@@ -52,7 +65,11 @@ if __name__ == "__main__":
     evaluator.wandb_watch()
 
     # optimizer
-    optimizer = AdamW(evaluator.trainable_params(), weight_decay=config_eval["weight_decay_ev"][args.evaluation_type])
+    print(evaluator.trainable_params())
+    for param in evaluator.trainable_params():
+        print(param)
+    optimizer = AdamW(evaluator.trainable_params(),
+                      weight_decay=config_eval["weight_decay_ev"][args.evaluation_type])
     evaluator.setup_lr_scheduler(optimizer, "CosineAnnealingLR", train_dataset_size=train_data_loader.dataset.__len__())
 
     # fit

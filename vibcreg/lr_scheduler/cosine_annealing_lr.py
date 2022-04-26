@@ -39,6 +39,6 @@ class CosineAnnealingLR(LRScheduler):
     def get_lr_scheduler(self):
         n_train_iters_in_a_batch = self._compute_n_train_iters_in_a_batch()
         lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,
-                                                                  T_max=int(n_train_iters_in_a_batch * self.n_epochs) // self.n_gpus if not self.T_max else self.T_max,
+                                                                  T_max=int(n_train_iters_in_a_batch * self.n_epochs + n_train_iters_in_a_batch) // self.n_gpus if not self.T_max else self.T_max,
                                                                   eta_min=self.eta_min)
         return lr_scheduler

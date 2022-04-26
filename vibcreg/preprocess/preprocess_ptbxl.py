@@ -33,8 +33,12 @@ class LabelEncoder(object):
 
 class PTB_XL(Dataset):
     def __init__(self, kind: str, augs: Augmentations, used_augmentations: list,
-                 train_fold=(1, 2, 3, 4, 5, 6, 7, 8), val_fold=9, test_fold=10, train_downsampling_rate=1.,
-                 sampling_rate=100, **kwargs):
+                 train_fold=(1, 2, 3, 4, 5, 6, 7, 8), val_fold=9, test_fold=10,
+                 train_downsampling_rate=1.,
+                 sampling_rate=100,
+                 is_tnc_used: bool = False,
+                 return_rc_dist: bool = False,
+                 **kwargs):
         """
         :param kind: "train" / "validate" / "test"
         :param augs: instance of the `Augmentations` class.
@@ -54,6 +58,8 @@ class PTB_XL(Dataset):
         self.test_fold = test_fold
         self.train_downsampling_rate = train_downsampling_rate
         self.sampling_rate = sampling_rate
+        self.is_tnc_used = is_tnc_used
+        self.return_rc_dist = return_rc_dist
         self.data_root = get_git_root().joinpath("vibcreg", "data", "PTB-XL")
 
         # load and process annotation data
@@ -76,12 +82,10 @@ class PTB_XL(Dataset):
         """
         if self.kind == 'train':
             train_idices = Y.strat_fold.apply(lambda x: x in self.train_fold)
-
             for i in range(len(train_idices)):
                 if train_idices.iloc[i]:
-                    if np.random.rand() >= self.train_downsampling_rate:
+                    if np.random.rand() > self.train_downsampling_rate:
                         train_idices.iloc[i] = False
-
             Y_ = Y[train_idices]
         elif self.kind == 'validate':
             val_idices = Y.strat_fold.apply(lambda x: x == self.val_fold)
@@ -127,7 +131,7 @@ class PTB_XL(Dataset):
             new_xs.append(x.astype(np.float32))
         return new_xs[0] if (len(xs) == 1) else new_xs
 
-    def __getitem__(self, idx):
+    def getitem_default(self, idx):
         # get a sample (`x`: signal, `y`: annotation)
         x, y = self._get_a_sample(idx)  # x: (12 * seq_len)
         std_x = np.std(x, axis=1, keepdims=True)  # (12, 1)
@@ -146,7 +150,36 @@ class PTB_XL(Dataset):
                 subx_view1, subx_view2 = self.augs.vertical_shift(std_x, subx_view1, subx_view2)
 
         subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)
-        return subx_view1, subx_view2, label
+
+        if self.return_rc_dist:
+            return subx_view1, subx_view2, label, np.array([self.augs.rc_dist]).astype(float)
+        else:
+            return subx_view1, subx_view2, label
+
+    def getitem_tnc(self, idx):
+        # get a sample (`x`: signal, `y`: annotation)
+        x, y = self._get_a_sample(idx)  # x: (12 * seq_len)
+        std_x = np.std(x, axis=1, keepdims=True)  # (12, 1)
+        label = self._create_label(y)  # (71,)
+
+        subx_view1, subx_view2, subx_view3 = self.augs.neigh_random_crop(x)
+
+        # augmentations
+        used_augs = [] if self.kind == "test" else self.used_augmentations
+        for aug in used_augs:
+            if aug == "AmpR":  # random amplitude resize
+                subx_view1, subx_view2, subx_view3 = self.augs.amplitude_resize(subx_view1, subx_view2, subx_view3)
+            if aug == "Vshift":  # random vertical shift
+                subx_view1, subx_view2, subx_view3 = self.augs.vertical_shift(std_x, subx_view1, subx_view2, subx_view3)
+
+        subx_view1, subx_view2, subx_view3 = self._assign_float32(subx_view1, subx_view2, subx_view3)
+        return subx_view1, subx_view2, subx_view3, label
+
+    def __getitem__(self, idx):
+        if self.is_tnc_used:
+            return self.getitem_tnc(idx)
+        else:
+            return self.getitem_default(idx)
 
     def __len__(self):
         return self._len
@@ -160,7 +193,7 @@ if __name__ == "__main__":
     # data pipeline
     batch_size = 6
     augs = Augmentations(subseq_len=250)  # 2.5s * 100Hz
-    train_dataset = PTB_XL("train", augs, ["RC"])  # ["RC", "AmpR", "Vshift"]
+    train_dataset = PTB_XL("train", augs, ["RC", "AmpR", "Vshift"], train_downsampling_rate=1.)  # ["RC", "AmpR", "Vshift"]
     test_dataset = PTB_XL("test", augs, [])
     train_data_loader = DataLoader(train_dataset, batch_size, num_workers=0, shuffle=True)
     test_data_loader = DataLoader(test_dataset, batch_size, num_workers=0, shuffle=True)

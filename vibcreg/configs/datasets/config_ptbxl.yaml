@@ -17,9 +17,15 @@ sampling_rate: 100  # [Hz]
 batch_size: 256
 num_workers: 0
 
+# misc
+is_tnc_used: False
+return_rc_dist: False  # True if `vibcreg_rcd` else False
+
 # augmentations
 subseq_len: 250  # 2.5s * 100Hz
 used_augmentations:
   - "RC"
+  - "AmpR"
+  - "Vshift"
 AmpR_rate: 0.3
 Vshift_rate: 0.5

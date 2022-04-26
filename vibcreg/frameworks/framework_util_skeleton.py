@@ -174,6 +174,7 @@ class Utility_SSL(ABC):
             else:
                 self.log_kNN_acc_during_validation(val_data_loader, n_neighbors_kNN, n_jobs_for_kNN)
 
+
         return val_loss
 
     @torch.no_grad()
@@ -181,11 +182,17 @@ class Utility_SSL(ABC):
         test_loss = self.representation_learning(test_data_loader, optimizer, "test")
         return test_loss
 
-    @staticmethod
-    def _stack_val_data(val_data_loader):
+    # @staticmethod
+    def _stack_val_data(self, val_data_loader):
         subxs = torch.tensor([])
         labels = torch.tensor([])
-        for subx_view1, subx_view2, label in val_data_loader:  # subx: (batch * n_channels * subseq_len)
+        for batch in val_data_loader:  # subx: (batch * n_channels * subseq_len)
+            if (self.framework_type == 'tnc') or (self.framework_type == 'vnibcreg'):
+                subx_view1, subx_view2, subx_view3, label = batch
+            elif self.framework_type == 'vibcreg_rcd':
+                subx_view1, subx_view2, label, rc_dist = batch
+            else:
+                subx_view1, subx_view2, label = batch
             subxs = torch.cat((subxs, subx_view1), dim=0)
             labels = torch.cat((labels, label), dim=0)
         return subxs, labels
@@ -246,15 +253,19 @@ class Utility_SSL(ABC):
             filename = f"checkpoint-{self.framework_type}-ep_{epoch}.pth"
             savepath = self.vibcreg_folder.joinpath("checkpoints", filename)
 
-            if not os.path.isdir(self.vibcreg_folder.joinpath("checkpoints")):
-                os.mkdir(self.vibcreg_folder.joinpath("checkpoints"))
+            try:
+                if not os.path.isdir(self.vibcreg_folder.joinpath("checkpoints")):
+                    os.mkdir(self.vibcreg_folder.joinpath("checkpoints"))
 
-            torch.save({'epoch': epoch,
-                        'model_state_dict': self.rl_model.module.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
-                        'train_loss': train_loss,
-                        'val_loss': val_loss,
-                        }, savepath)
+                torch.save({'epoch': epoch,
+                            'model_state_dict': self.rl_model.module.state_dict(),
+                            'optimizer_state_dict': optimizer.state_dict(),
+                            'train_loss': train_loss,
+                            'val_loss': val_loss,
+                            }, savepath)
+            except PermissionError:
+                print("model couldn't be saved due to some permission error.")
+                pass
 
     @torch.no_grad()
     def get_batch_of_representations(self, test_data_loader, dataset_name: str, **kwargs):
@@ -265,7 +276,13 @@ class Utility_SSL(ABC):
             SR_idx = test_data_loader.dataset.label_encoder.abb2idx['SR']
             reprs = torch.tensor([])
             isNORMs = torch.tensor([])
-            for subx_view1, subx_view2, label in test_data_loader:  # subx: (batch * 12 * subseq_len); label: (batch * 71); 71 unique classes.
+            for batch in test_data_loader:  # subx: (batch * 12 * subseq_len); label: (batch * 71); 71 unique classes.
+                if (self.framework_type == 'tnc') or (self.framework_type == 'vnibcreg'):
+                    subx_view1, subx_view2, subx_view3, label = batch
+                elif self.framework_type == 'vibcreg_rcd':
+                    subx_view1, subx_view2, label, rc_dist = batch
+                else:
+                    subx_view1, subx_view2, label = batch
                 repr_ = self._representation_for_validation(subx_view1)
                 reprs = torch.cat((reprs, repr_), dim=0)
 
@@ -278,7 +295,13 @@ class Utility_SSL(ABC):
         else:
             reprs = torch.tensor([])
             labels = torch.tensor([])
-            for subx_view1, subx_view2, label in test_data_loader:  # subx: (batch * 1 * subseq_len)
+            for batch in test_data_loader:  # subx: (batch * 12 * subseq_len); label: (batch * 71); 71 unique classes.
+                if (self.framework_type == 'tnc') or (self.framework_type == 'vnibcreg'):
+                    subx_view1, subx_view2, subx_view3, label = batch
+                elif self.framework_type == 'vibcreg_rcd':
+                    subx_view1, subx_view2, label, rc_dist = batch
+                else:
+                    subx_view1, subx_view2, label = batch
                 repr_ = self._representation_for_validation(subx_view1)
                 reprs = torch.cat((reprs, repr_), dim=0)
                 labels = torch.cat((labels, label.cpu()), dim=0)
@@ -300,7 +323,8 @@ class Utility_SSL(ABC):
             ax.set_title(f'{feature_idx + 1}-th')
             ax.hist(self.reprs[:n_samples, feature_idx], bins=100)
         plt.tight_layout()
-        wandb.log({f"Feature histogram-ep_{self.epoch}": [wandb.Image(f, caption=f'')]})
+        # wandb.log({f"Feature histogram-ep_{self.epoch}": [wandb.Image(f, caption=f'')]})
+        wandb.log({f"Feature histogram": [wandb.Image(f, caption=f'')]})
         plt.close()
         print("# log_feature_histogram")
 
@@ -313,7 +337,8 @@ class Utility_SSL(ABC):
         plt.figure(figsize=(5, 5))
         plt.scatter(y_embedded[:, 0], y_embedded[:, 1], alpha=0.5, c=self.labels[:n_samples], cmap="nipy_spectral")
         plt.tight_layout()
-        wandb.log({f't-SNE analysis-ep_{self.epoch}': [wandb.Image(plt, caption=f'')]})
+        # wandb.log({f't-SNE analysis-ep_{self.epoch}': [wandb.Image(plt, caption=f'')]})
+        wandb.log({f't-SNE analysis': [wandb.Image(plt, caption=f'')]})
         plt.close()
         print("# log_tsne_analysis")
 

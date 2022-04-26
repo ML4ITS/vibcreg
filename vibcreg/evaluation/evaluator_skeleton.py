@@ -169,7 +169,7 @@ class Evaluator(ABC):
         for param in model.parameters():
             param.requires_grad = False
 
-    def load_encoder(self) -> None:
+    def load_encoder(self, pretrained_encoder=None) -> None:
         """
         load `self.encoder` internally.
         """
@@ -178,6 +178,9 @@ class Evaluator(ABC):
             model_builder = ModelBuilder(self.config_dataset, self.config_framework, self.device_ids, self.use_wandb)
             self.encoder = model_builder.build_encoder()
             self.encoder = nn.DataParallel(self.encoder, device_ids=self.device_ids)
+        elif pretrained_encoder:
+            self.encoder = nn.DataParallel(pretrained_encoder, device_ids=self.device_ids)
+            self._freeze(self.encoder) if not self.fine_tune else None
         else:
             # build model (encoder + SSL framework)
             model_builder = ModelBuilder(self.config_dataset, self.config_framework, self.device_ids, self.use_wandb)
@@ -287,6 +290,7 @@ class Evaluator(ABC):
                       {"params": self.encoder.parameters(), "lr": self.config_eval["lr_enc_ev"]}]
         else:  # linear evaluation
             params = [{"params": self.classifier.parameters(), "lr": self.config_eval["lr_clf_ev"]}]
+        # print('trainable_params:', params)
         return params
 
     @abstractmethod
@@ -313,23 +317,35 @@ class Evaluator(ABC):
         :param status: train / validate / test
         """
         loss, step = 0., 0
-        for subx_view1, subx_view2, label in data_loader:  # subx: (batch * n_channels * subseq_len)
+        for batch in data_loader:  # subx: (batch * 12 * subseq_len); label: (batch * 71); 71 unique classes.
+            if self.framework_type == 'tnc' or (self.framework_type == 'vnibcreg'):
+                subx_view1, subx_view2, subx_view3, label = batch
+            elif self.framework_type == 'vibcreg_rcd':
+                subx_view1, subx_view2, label, rc_dist = batch
+            else:
+                subx_view1, subx_view2, label = batch
             optimizer.zero_grad()
             label = self._adjust_label(label)
 
             out = self._out_from_encoder_classifier(subx_view1.to(self.device))
 
             # loss
-            loss = self.criterion(out, label.to(self.device))
+            loss_ = self.criterion(out, label.to(self.device))
 
             # weight update
             if status == "train":
-                loss.backward()
+                loss_.backward()
                 optimizer.step()
                 self.lr_scheduler.step()
 
-            loss += loss.item()
+            loss += loss_.item()
             step += 1
+
+            # if status == "train":
+            #     print(f'train_loss_step({step}):', loss)
+
+        # if status == 'train':
+        #     print('mean_train_loss:', loss)
 
         return loss / step
 
@@ -376,7 +392,13 @@ class Evaluator(ABC):
     @torch.no_grad()
     def _compute_test_acc(self):
         test_acc, step = 0., 0
-        for subx_view1, subx_view2, label in self.test_data_loader:  # subx: (batch * n_channels * subseq_len)
+        for batch in self.test_data_loader:  # subx: (batch * 12 * subseq_len); label: (batch * 71); 71 unique classes.
+            if self.framework_type == 'tnc' or self.framework_type == 'vnibcreg':
+                subx_view1, subx_view2, subx_view3, label = batch
+            elif self.framework_type == 'vibcreg_rcd':
+                subx_view1, subx_view2, label, rc_dist = batch
+            else:
+                subx_view1, subx_view2, label = batch
             label = self._adjust_label(label)
 
             out = self._out_from_encoder_classifier(subx_view1.to(self.device))
@@ -386,6 +408,8 @@ class Evaluator(ABC):
             test_acc += accuracy_score(out, label)
 
             step += 1
+
+            # print(f'{step} | test_acc:', test_acc)
 
         return test_acc / step
 

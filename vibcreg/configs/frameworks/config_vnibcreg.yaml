@@ -3,16 +3,17 @@ proj_hid_vibcreg: 4096
 proj_out_vibcreg: 4096
 norm_layer_type_proj_vibcreg: "BatchNorm"
 add_IterN_at_the_last_in_proj_vibcreg: True
-use_predictor_msf: False
 
 # framework loss
-lambda_vibcreg: 25.
-mu_vibcreg: 25.
-nu_vibcreg: 200.
+lambda_vibcreg: 25 #25.
+mu_vibcreg: 25 #25.
+nu_vibcreg: 25 #200.
+rho_tnc: 25
 loss_type_vibcreg: "mse"
+tnc_w: 0.05
 
 # framework utility (belongs to the abstract class: `Utility_SSL`)
-framework_type: "vibcreg"
+framework_type: "vnibcreg"
 
 # backbone-encoder
 backbone_type: "resnet1d"
@@ -29,7 +30,7 @@ pool_type: 'gap'  # gap, att
 
 # train
 lr: 0.001
-n_epochs: 10 #100
+n_epochs: 100 #100
 weight_decay: 0.00001
 
 # log & validation/test

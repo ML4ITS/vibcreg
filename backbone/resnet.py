@@ -107,15 +107,7 @@ class ResidualBlock(nn.Module):
 
 
 class ResNet1D(nn.Module):
-    def __init__(self,
-                 in_channels_enc,
-                 n_blocks_enc=(1, 1, 1, 1),
-                 out_channels_enc=64,
-                 kernel_size_enc=3,
-                 norm_layer_type_enc="BatchNorm",
-                 dropout_rate_enc=0.,
-                 pool_type='gap',
-                 **kwargs):
+    def __init__(self, in_channels_enc, n_blocks_enc=(1, 1, 1, 1), out_channels_enc=64, kernel_size_enc=3, norm_layer_type_enc="BatchNorm", dropout_rate_enc=0., **kwargs):
         """
         :param in_channels_enc: dimension of an input; e.g., 1 for the UCR datasets, and 12 for the PTB-XL.
         :param n_blocks_enc: e.g., [3, 4, 6, 3]; The same residual block is repeated 3 times -> dimension increase -> another same residual block is repeated 4  times -> ...
@@ -125,7 +117,6 @@ class ResNet1D(nn.Module):
         :param dropout_rate_enc: rate for `Dropout`. If 0, `Dropout` is not used.
         """
         super().__init__()
-        self.pool_type = pool_type
 
         # define blocks
         self.first_block = FirstBlock(in_channels_enc, out_channels_enc, 7, 2, norm_layer_type_enc, dropout_rate_enc)
@@ -142,15 +133,8 @@ class ResNet1D(nn.Module):
 
         self.last_channels_enc = in_channels_enc
 
-        # pooling layer(s)
-        if pool_type == 'gap':
-            self.global_avgpool = nn.AdaptiveAvgPool1d(1)
-        elif pool_type == 'att':
-            self.att = nn.Sequential(nn.Linear(out_channels_enc, out_channels_enc),
-                                     nn.Tanh(),
-                                     nn.Linear(out_channels_enc, 1),
-                                     nn.Sigmoid()
-                                     )
+        # define global average pooling layer
+        self.global_avgpool = nn.AdaptiveAvgPool1d(1)
 
     @staticmethod
     def _flatten(x):
@@ -163,25 +147,14 @@ class ResNet1D(nn.Module):
         for rb in self.res_blocks:
             out = rb(out)
 
-        if self.pool_type == 'gap':
-            out = self.global_avgpool(out)
-            out = self._flatten(out)
-        elif self.pool_type == 'att':
-            out = torch.transpose(out, 1, 2)  # (N, L, C)
-            att_score = self.att(out)  # (N, L, 1)
-            # context = torch.mean(out, dim=1, keepdim=True)  # (N, 1, C)
-            # context = context.repeat(1, out.shape[1], 1).detach()  # (N, L, C)
-            # att_input = torch.cat((out, context), dim=-1)  # (N, L, 2C)
-            # att_score = self.att(att_input)  # (N, L, 1)
-            out = out * att_score  # (N, L, C)
-            out = torch.sum(out, dim=1) / torch.sum(att_score.squeeze(), dim=-1, keepdim=True)  # (N, C)
-
+        out = self.global_avgpool(out)
+        out = self._flatten(out)
         return out
 
 
 if __name__ == "__main__":
     # build a model
-    resnet1d = ResNet1D(in_channels_enc=1, pool_type='att')
+    resnet1d = ResNet1D(in_channels=1)
     print("# resnet1d:\n", resnet1d, end='\n\n')
     print("last_channels_enc: ", resnet1d.last_channels_enc)
 

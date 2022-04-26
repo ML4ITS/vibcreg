@@ -35,9 +35,9 @@ def build_data_pipeline(config_dataset) -> (DataLoader, DataLoader, DataLoader):
         train_dataset = UCRDataset("train", dataset_importer, augs, **cf)
         test_dataset = UCRDataset("test", dataset_importer, augs, **cf)
         # build the `DataLoader`s
-        train_data_loader = DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True)
-        val_data_loader = DataLoader(test_dataset, batch_size, num_workers=num_workers, shuffle=True)
-        test_data_loader = DataLoader(test_dataset, batch_size, num_workers=num_workers, shuffle=True)
+        train_data_loader = DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False)
+        val_data_loader = DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False)
+        test_data_loader = DataLoader(test_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False)
 
     elif dataset_name == "PTB-XL":
         augs = Augmentations(**cf)
