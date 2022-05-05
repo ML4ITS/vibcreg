@@ -2,7 +2,7 @@
 
 def run_ssl_for_rl(args, config_dataset, config_framework,
                    train_data_loader, val_data_loader, test_data_loader,
-                   rl_util, optimizer):
+                   rl_util, optimizer, include_finish_wandb=True):
     """
     run self-supervised learning (SSL) for representation learning (RL).
     """
@@ -33,4 +33,6 @@ def run_ssl_for_rl(args, config_dataset, config_framework,
 
     test_loss = rl_util.test(test_data_loader, optimizer)
     rl_util.test_log(test_loss)
-    rl_util.finish_wandb()
+
+    if include_finish_wandb:
+        rl_util.finish_wandb()

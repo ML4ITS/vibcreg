@@ -6,77 +6,41 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
+from sktime.datasets import load_from_tsfile
+from sklearn.preprocessing import LabelEncoder
 
 from vibcreg.util import get_git_root
 from vibcreg.data.download_data import download_ucr_datasets
 from vibcreg.preprocess.augmentations import Augmentations
 
 
-class DatasetImporter(object):
-    """
-    1. It imports one dataset from the UCR archive.
-    2. splits into `X_train`, `X_test`, `Y_train`, and `Y_test`.
-    """
-    def __init__(self, ucr_dataset_name: str,
-                 train_data_ratio: int = 0.8,
-                 test_data_ratio: int = 0.2,
-                 train_random_seed: int = 0,
-                 test_random_seed: int = 0, **kwargs):
-        """
-        :param ucr_dataset_name: e.g., "ElectricDevices"
-        :param train_data_ratio: 0.8 means 80% of a dataset
-        :param test_data_ratio: 0.2 means 20% of a dataset
-        :param train_random_seed:
-        :param test_random_seed:
-        """
-        download_ucr_datasets()
-        self.data_root = get_git_root().joinpath("vibcreg", "data", "UCRArchive_2018", ucr_dataset_name)
-
-        # fetch an entire dataset
-        df_train = pd.read_csv(self.data_root.joinpath(f"{ucr_dataset_name}_TRAIN.tsv"), sep='\t', header=None)
-        df_test = pd.read_csv(self.data_root.joinpath(f"{ucr_dataset_name}_TEST.tsv"), sep='\t', header=None)
-        df = pd.concat((df_train, df_test), axis=0)
-        X, Y = df.iloc[:, 1:].values, df.iloc[:, [0]].values
-
-        rand_indices = np.arange(X.shape[0])
-        rand_indices_train, rand_indices_test, sub_Y, _ = train_test_split(rand_indices, Y,
-                                                                           train_size=train_data_ratio,
-                                                                           test_size=test_data_ratio,
-                                                                           stratify=Y.reshape(-1),
-                                                                           random_state=test_random_seed)
-
-        self.X_train, self.X_test = X[rand_indices_train, :], X[rand_indices_test, :]  # (B x F)
-        self.Y_train, self.Y_test = Y[rand_indices_train, :], Y[rand_indices_test, :]  # (B x 1)
-
-        print("# rand_indices_train.shape:", rand_indices_train.shape)
-        print("# rand_indices_test.shape:", rand_indices_test.shape)
-
-        print("# unique labels (train):", np.unique(self.Y_train.reshape(-1)))
-        print("# unique labels (test):", np.unique(self.Y_test.reshape(-1)))
-
-
-class DatasetImporterDefault(object):
+class DatasetImporterDefaultUEA(object):
     """
     This uses train and test sets as given.
     To compare with the results from ["Unsupervised scalable representation learning for multivariate time series"]
     """
-    def __init__(self, ucr_dataset_name: str, **kwargs):
+
+    def __init__(self, uea_dataset_name: str, **kwargs):
         """
-        :param ucr_dataset_name: e.g., "ElectricDevices"
+        :param uea_dataset_name: e.g., "ElectricDevices"
         :param train_data_ratio: 0.8 means 80% of a dataset
         :param test_data_ratio: 0.2 means 20% of a dataset
         :param train_random_seed:
         :param test_random_seed:
         """
         download_ucr_datasets()
-        self.data_root = get_git_root().joinpath("vibcreg", "data", "UCRArchive_2018", ucr_dataset_name)
+        self.data_root = get_git_root().joinpath("vibcreg", "data", "UEAArchive_2018", uea_dataset_name)
 
         # fetch an entire dataset
-        df_train = pd.read_csv(self.data_root.joinpath(f"{ucr_dataset_name}_TRAIN.tsv"), sep='\t', header=None)
-        df_test = pd.read_csv(self.data_root.joinpath(f"{ucr_dataset_name}_TEST.tsv"), sep='\t', header=None)
+        self.X_train, self.Y_train = load_from_tsfile(str(self.data_root.joinpath(f'{uea_dataset_name}_TRAIN.ts')),
+                                                      return_data_type='numpy3d', )
+        self.X_test, self.Y_test = load_from_tsfile(str(self.data_root.joinpath(f'{uea_dataset_name}_TEST.ts')),
+                                                    return_data_type='numpy3d')
 
-        self.X_train, self.X_test = df_train.iloc[:, 1:].values, df_test.iloc[:, 1:].values
-        self.Y_train, self.Y_test = df_train.iloc[:, [0]].values, df_test.iloc[:, [0]].values
+        le = LabelEncoder()
+        self.Y_train = le.fit_transform(self.Y_train)
+        self.Y_test = le.transform(self.Y_test)
+        # self.Y_train, self.Y_test = np.array(self.Y_train, dtype=float).astype(int), np.array(self.Y_test, dtype=float).astype(int)
 
         print('self.X_train.shape:', self.X_train.shape)
         print('self.X_test.shape:', self.X_test.shape)
@@ -85,10 +49,10 @@ class DatasetImporterDefault(object):
         print("# unique labels (test):", np.unique(self.Y_test.reshape(-1)))
 
 
-class UCRDataset(Dataset):
+class UEADataset(Dataset):
     def __init__(self,
                  kind: str,
-                 dataset_importer: Union[DatasetImporter, DatasetImporterDefault],
+                 dataset_importer,
                  augs: Augmentations,
                  used_augmentations: list,
                  data_scaling: bool = True,
@@ -144,8 +108,10 @@ class UCRDataset(Dataset):
         return new_xs[0] if (len(xs) == 1) else new_xs
 
     def getitem_default(self, idx):
-        x, y = self.X[idx, :], self.Y[idx, :]
-        x = x.reshape(1, -1)  # (1 x F)
+        x, y = self.X[idx, :, :], self.Y[idx]
+
+        if len(x.shape) == 1:
+            x = x[np.newaxis, :]  # to make a channel dim of 1 for a univariate time series
         std_x = np.std(x)
 
         # scale time series (whole sequence)
@@ -163,7 +129,6 @@ class UCRDataset(Dataset):
                 subx_view1, subx_view2 = self.augs.amplitude_resize(subx_view1, subx_view2)
             if aug == "Vshift":  # random vertical shift
                 subx_view1, subx_view2 = self.augs.vertical_shift(std_x, subx_view1, subx_view2)
-
         subx_view1, subx_view2 = self._assign_float32(subx_view1, subx_view2)
 
         if self.return_rc_dist:
@@ -172,7 +137,7 @@ class UCRDataset(Dataset):
             return subx_view1, subx_view2, y
 
     def getitem_tnc(self, idx):
-        x, y = self.X[idx, :], self.Y[idx, :]
+        x, y = self.X[idx, :, :], self.Y[idx]
         x = x.reshape(1, -1)  # (1 x F)
         std_x = np.std(x)
 
@@ -208,23 +173,23 @@ if __name__ == "__main__":
     import os
     import matplotlib.pyplot as plt
     from torch.utils.data import DataLoader
+
     os.chdir("../")
 
     # data pipeline
     augs = Augmentations(subseq_len=48)
-    dataset_importer = DatasetImporterDefault("ElectricDevices")
-    train_dataset = UCRDataset("train", dataset_importer, augs, ["NC", "AmpR", ],
-                               is_tnc_used=False, return_rc_dist=True)
+    dataset_importer = DatasetImporterDefaultUEA("ArticularyWordRecognition")
+    train_dataset = UEADataset("train", dataset_importer, augs, ["RC", "AmpR"])
     # test_dataset = UCRDataset("test", dataset_importer, augs, [])
     train_data_loader = DataLoader(train_dataset, batch_size=32, num_workers=0, shuffle=True)
     # test_data_loader = DataLoader(test_dataset, batch_size=32, num_workers=0, shuffle=True)
 
     # get a mini-batch of samples
     for batch in train_data_loader:
-        # subx_view1, subx_view2, y = batch
-        # subx_view1, subx_view2, subx_view3, y = batch
-        subx_view1, subx_view2, y, rc_dist = batch
+        subx_view1, subx_view2, y = batch
         break
+
+    print('subx_view1.shape:', subx_view1.shape)
 
     # plot
     plt.figure(figsize=(9, 4))
@@ -236,7 +201,6 @@ if __name__ == "__main__":
         #     plt.plot(subx_view3[i, 0, :])
         plt.grid()
     plt.show()
-
 
 # if __name__ == "__main__":
 #     import os

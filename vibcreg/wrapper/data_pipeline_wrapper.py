@@ -3,7 +3,8 @@ from torch.utils.data import DataLoader
 
 from vibcreg.preprocess.augmentations import Augmentations
 from vibcreg.preprocess.preprocess_ptbxl import PTB_XL
-from vibcreg.preprocess.preprocess_ucr import DatasetImporter, UCRDataset
+from vibcreg.preprocess.preprocess_ucr import DatasetImporter, UCRDataset, DatasetImporterDefault
+from vibcreg.preprocess.preprocess_uea import UEADataset, DatasetImporterDefaultUEA
 
 
 def load_hyper_param_settings(yaml_fname: str):
@@ -30,11 +31,26 @@ def build_data_pipeline(config_dataset) -> (DataLoader, DataLoader, DataLoader):
     num_workers = cf["num_workers"]
 
     if dataset_name == "UCR":
-        dataset_importer = DatasetImporter(**cf)
+        if cf["use_DatasetImporterDefault"]:
+            dataset_importer = DatasetImporterDefault(**cf)
+        else:
+            dataset_importer = DatasetImporter(**cf)
+
         augs = Augmentations(**cf)
         train_dataset = UCRDataset("train", dataset_importer, augs, **cf)
         test_dataset = UCRDataset("test", dataset_importer, augs, **cf)
         # build the `DataLoader`s
+        train_data_loader = DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False)
+        val_data_loader = DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False)
+        test_data_loader = DataLoader(test_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False)
+
+    elif dataset_name == 'UEA':
+        dataset_importer = DatasetImporterDefaultUEA(**cf)
+
+        augs = Augmentations(**cf)
+        train_dataset = UEADataset("train", dataset_importer, augs, **cf)
+        test_dataset = UEADataset("test", dataset_importer, augs, **cf)
+
         train_data_loader = DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False)
         val_data_loader = DataLoader(train_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False)
         test_data_loader = DataLoader(test_dataset, batch_size, num_workers=num_workers, shuffle=True, drop_last=False)

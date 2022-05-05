@@ -15,7 +15,7 @@ def cos_sim_loss(z1: Tensor, z2: Tensor) -> Tensor:
     return 1 - (z1 * z2).sum(dim=1).mean()
 
 
-def vibcreg_invariance_loss(z1: Tensor, z2: Tensor, loss_type_vibcreg: str) -> Tensor:
+def vibcreg_invariance_loss(z1: Tensor, z2: Tensor, loss_type_vibcreg: str='mse') -> Tensor:
     sim_loss = 0.
     if loss_type_vibcreg == 'mse':
         sim_loss = mse_loss(z1, z2)

@@ -74,6 +74,7 @@ class Augmentations(object):
         n_channels = subx_views[0].shape[0]
         for i in range(len(subx_views)):
             mul_AmpR = 1 + np.random.uniform(-self.AmpR_rate, self.AmpR_rate, size=(n_channels, 1))
+            # mul_AmpR = 1 + np.random.normal(0, self.AmpR_rate, size=(n_channels, 1))
             new_subx_view = subx_views[i] * mul_AmpR
             new_subx_views.append(new_subx_view)
 
@@ -86,6 +87,7 @@ class Augmentations(object):
         for i in range(len(subx_views)):
             vshift_mag = self.Vshift_rate * std_x
             vshift_mag = np.random.uniform(-vshift_mag, vshift_mag)
+            # vshift_mag = np.random.normal(0, vshift_mag)
             new_subx_view = subx_views[i] + vshift_mag
             new_subx_views.append(new_subx_view)
 

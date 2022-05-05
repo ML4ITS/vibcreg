@@ -8,8 +8,17 @@ use_predictor_msf: False
 # framework loss
 lambda_vibcreg: 25.
 mu_vibcreg: 25.
-nu_vibcreg: 200.
+nu_vibcreg: 200 #10.
 loss_type_vibcreg: "mse"
+use_vicreg_FD_loss: False
+length_sampling: False
+sample_len_ratios:
+    view1:
+      - 0.3
+      - 1.
+    view2:
+      - 0.3
+      - 1.
 
 # framework utility (belongs to the abstract class: `Utility_SSL`)
 framework_type: "vibcreg"
@@ -29,7 +38,7 @@ pool_type: 'gap'  # gap, att
 
 # train
 lr: 0.001
-n_epochs: 10 #100
+n_epochs: 300 #100
 weight_decay: 0.00001
 
 # log & validation/test

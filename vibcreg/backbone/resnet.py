@@ -106,6 +106,16 @@ class ResidualBlock(nn.Module):
         return out
 
 
+class Transpose(nn.Module):
+    def __init__(self, dim1, dim2):
+        super(Transpose, self).__init__()
+        self.dim1 = dim1
+        self.dim2 = dim2
+
+    def forward(self, input):
+        return torch.transpose(input, self.dim1, self.dim2)
+
+
 class ResNet1D(nn.Module):
     def __init__(self,
                  in_channels_enc,
@@ -145,12 +155,34 @@ class ResNet1D(nn.Module):
         # pooling layer(s)
         if pool_type == 'gap':
             self.global_avgpool = nn.AdaptiveAvgPool1d(1)
-        elif pool_type == 'att':
-            self.att = nn.Sequential(nn.Linear(out_channels_enc, out_channels_enc),
-                                     nn.Tanh(),
-                                     nn.Linear(out_channels_enc, 1),
-                                     nn.Sigmoid()
-                                     )
+        elif pool_type == 'gmp':
+            self.global_maxpool = nn.AdaptiveMaxPool1d(1)
+        elif pool_type == 'att' or pool_type == 'combined':
+            # self.att = nn.Sequential(Transpose(1, 2),
+            #                          nn.Linear(out_channels_enc, 1),
+            #                          nn.ReLU()
+            #                          )
+            h_size = out_channels_enc
+            bidirectional = True
+            num_layers = 1
+            D = 2 if bidirectional else 1
+            self.gru = nn.GRU(out_channels_enc, hidden_size=h_size, num_layers=num_layers, bidirectional=bidirectional, batch_first=True)
+            self.linear_gru = nn.Linear(2*h_size, h_size)
+            self.h_0 = None
+            self.init_states = lambda batch_size: torch.zeros(D * num_layers, batch_size, out_channels_enc)  # D*n_layers, batch_size, h_size
+
+            h_size = out_channels_enc // 2
+            bidirectional = True
+            num_layers = 1
+            D = 2 if bidirectional else 1
+            self.gru_p = nn.GRU(out_channels_enc, hidden_size=h_size, num_layers=num_layers, bidirectional=bidirectional, batch_first=True)
+            self.h_0_p = None
+            self.init_states_p = lambda batch_size: torch.zeros(D*num_layers, batch_size, h_size)  # D*n_layers, batch_size, h_size
+
+            self.linear = nn.Linear(D*h_size, 1)
+
+        elif pool_type == 'combined2':
+            self.linear = nn.Linear(out_channels_enc, 1)
 
     @staticmethod
     def _flatten(x):
@@ -158,37 +190,87 @@ class ResNet1D(nn.Module):
         x = x.view(batch_size, -1)
         return x
 
-    def forward(self, x):
+    def forward(self, x, return_concat_combined=True, projector_type='vibcreg'):
         out = self.first_block(x)
         for rb in self.res_blocks:
-            out = rb(out)
+            out = rb(out)  # (N, C, L)
 
         if self.pool_type == 'gap':
             out = self.global_avgpool(out)
             out = self._flatten(out)
+            return out
+        elif self.pool_type == 'gmp':
+            out = self.global_maxpool(out)
+            out = self._flatten(out)
+            return out
         elif self.pool_type == 'att':
-            out = torch.transpose(out, 1, 2)  # (N, L, C)
-            att_score = self.att(out)  # (N, L, 1)
-            # context = torch.mean(out, dim=1, keepdim=True)  # (N, 1, C)
-            # context = context.repeat(1, out.shape[1], 1).detach()  # (N, L, C)
-            # att_input = torch.cat((out, context), dim=-1)  # (N, L, 2C)
-            # att_score = self.att(att_input)  # (N, L, 1)
-            out = out * att_score  # (N, L, C)
-            out = torch.sum(out, dim=1) / torch.sum(att_score.squeeze(), dim=-1, keepdim=True)  # (N, C)
+            out = out.transpose(1, 2)  # (N, L, C)
 
-        return out
+            if projector_type == 'simclr':
+                # att_score = att_score.detach()
+                out = torch.mean(out, dim=1)  # (N, C)
+            else:
+                self.h_0 = self.init_states(out.shape[0]).to(out.device)
+                att_score, hn = self.gru(out, self.h_0)  # (N, L, D)
+                att_score = torch.relu(self.linear(att_score))  # (N, L, 1)
+                att_score = torch.softmax(att_score, dim=1)
+                out = out * att_score  # (N, L, C)
+                out = torch.sum(out, dim=1)  # (N, C)
+            return out
+        elif self.pool_type == 'combined':
+            out = out.transpose(1, 2)  # (N, L, C)
+            self.h_0 = self.init_states(out.shape[0]).to(out.device)
+            out, hn = self.gru(out, self.h_0)  # (N, L, C)
+            out = self.linear_gru(out)
+
+            out_gap = torch.mean(out, dim=1)  # (N, C)
+            out_gmp = torch.max(out, dim=1).values  # (N, C)
+
+            # att_score = self.att(out)  # (N, L, 1)
+            # att_score = torch.softmax(att_score, dim=1)
+            # out_att = torch.transpose(out, 1, 2)  # (N, L, C)
+            # out_att = out_att * att_score  # (N, L, C)
+            # out_att = torch.sum(out_att, dim=1)  # (N, C)
+            # out = torch.cat((out_gap, out_gmp, out_att), dim=-1)  # (N, 3*C)
+
+            self.h_0_p = self.init_states_p(out.shape[0]).to(out.device)
+            # att_score, hn = self.gru_p(out, self.h_0_p)  # (N, L, D)
+            att_score, hn = self.gru_p(out.detach(), self.h_0_p)  # (N, L, D)
+            att_score = torch.relu(self.linear(att_score))  # (N, L, 1)
+            att_score = torch.softmax(att_score, dim=1)
+            out_att = out * att_score  # (N, L, C)
+            out_att = torch.sum(out_att, dim=1)  # (N, C)
+
+            if return_concat_combined:
+                return torch.cat((out_gap, out_gmp, out_att), dim=-1)
+            else:
+                return out_gap, out_gmp, out_att
+        elif self.pool_type == 'combined2':
+            out = out.transpose(1, 2)  # (N, L, C)
+
+            out_gap = torch.mean(out, dim=1)  # (N, C)
+            out_gmp = torch.max(out, dim=1).values  # (N, C)
+
+            att_score = torch.relu(self.linear(out))  # (N, L, 1)
+            out_att = out * att_score  # (N, L, C)
+            out_att = torch.sum(out_att, dim=1)  # (N, C)
+
+            if return_concat_combined:
+                return torch.cat((out_gap, out_gmp, out_att), dim=-1)
+            else:
+                return out_gap, out_gmp, out_att
 
 
 if __name__ == "__main__":
     # build a model
-    resnet1d = ResNet1D(in_channels_enc=1, pool_type='att')
+    resnet1d = ResNet1D(in_channels_enc=1, n_blocks_enc=(4, 4), pool_type='att')
     print("# resnet1d:\n", resnet1d, end='\n\n')
     print("last_channels_enc: ", resnet1d.last_channels_enc)
 
     # generate a toy dataset
     batch_size = 32
     in_channels = 1
-    H = 224  # horizon (length)
+    H = 750  # horizon (length)
     X = torch.rand((batch_size, in_channels, H))
 
     # forward

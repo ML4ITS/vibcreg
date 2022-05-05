@@ -3,6 +3,8 @@ import torch.nn as nn
 from vibcreg.backbone.apc_encoder import APCEncoder
 from vibcreg.backbone.downsampling_cnn import DownsamplingCNN
 from vibcreg.backbone.resnet import ResNet1D
+from vibcreg.backbone.tcn import TemporalConvNet
+
 from vibcreg.frameworks.apc import APC, Utility_APC
 from vibcreg.frameworks.barlow_twins import BarlowTwins, Utility_BarlowTwins
 from vibcreg.frameworks.cpc import CPC, Utility_CPC
@@ -32,6 +34,8 @@ class ModelBuilder(object):
             encoder = DownsamplingCNN(**self.config_framework)
         elif backbone_type == "apc_encoder":
             encoder = APCEncoder(self.config_dataset["n_data_channels"], **self.config_framework)
+        elif backbone_type == 'tcn':
+            encoder = TemporalConvNet(self.config_dataset["n_data_channels"], **self.config_framework)
         else:
             raise ValueError("invalid `backbone_type`")
         return encoder
@@ -56,7 +60,7 @@ class ModelBuilder(object):
                 rl_model = nn.DataParallel(rl_model, device_ids=device_ids)
             rl_util = Utility_RandInit(rl_model=rl_model, device_ids=device_ids, use_wandb=use_wandb,
                                        **self.config_framework)
-        elif (framework_type == "vibcreg") or (framework_type == "vbibcreg"):
+        elif (framework_type == "vibcreg") or (framework_type == "vbibcreg") or (framework_type == "vicreg"):
             rl_model = VIbCReg(encoder, encoder.last_channels_enc, **self.config_framework)
             if apply_data_parallel:
                 rl_model = nn.DataParallel(rl_model, device_ids=device_ids)

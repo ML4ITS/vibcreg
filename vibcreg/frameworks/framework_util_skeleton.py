@@ -58,13 +58,16 @@ class Utility_SSL(ABC):
         else:
             raise ValueError("unavailable name for `lr_scheduler`.")
 
-    def init_wandb(self, config_dataset, config_framework):
+    def init_wandb(self, config_dataset, config_framework, overwritten_project_name=None):
         matplotlib.use('Agg')  # eliminates the issue of 'TclError: Can't find a usable tk.tcl in the following directories:' when using `matplotlib`.
 
         # set `run_name`
         if config_dataset["dataset_name"] == "UCR":
             ucr_dataset_name = config_dataset["ucr_dataset_name"]
             run_name = f"{ucr_dataset_name}-{self.framework_type}"
+        elif config_dataset["dataset_name"] == "UEA":
+            uea_dataset_name = config_dataset["uea_dataset_name"]
+            run_name = f"{uea_dataset_name}-{self.framework_type}"
         else:
             run_name = f"{self.framework_type}"
 
@@ -78,9 +81,12 @@ class Utility_SSL(ABC):
                 for k, v in cf.items():
                     config[k] = v
 
-            project_name = config_framework["project_name"].get(config_dataset["dataset_name"], None)
-            if project_name is None:
-                project_name = config_dataset["dataset_name"]
+            if overwritten_project_name is None:
+                project_name = config_framework["project_name"].get(config_dataset["dataset_name"], None)
+                if project_name is None:
+                    project_name = config_dataset["dataset_name"]
+            else:
+                project_name = overwritten_project_name
 
             self.wb = wandb.init(project=project_name, config=config, name=run_name)
         else:
@@ -173,7 +179,6 @@ class Utility_SSL(ABC):
                 self.log_macro_f1score_during_validation(val_data_loader, n_neighbors_kNN, n_jobs_for_kNN)
             else:
                 self.log_kNN_acc_during_validation(val_data_loader, n_neighbors_kNN, n_jobs_for_kNN)
-
 
         return val_loss
 

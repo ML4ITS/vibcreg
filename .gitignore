@@ -141,6 +141,8 @@ vibcreg/data/UCRArchive_2018/*
 !vibcreg/data/UCRArchive_2018/__init__.py
 vibcreg/data/PTB-XL/*
 !vibcreg/data/PTB-XL/__init__.py
+vibcreg/data/UEAArchive_2018/*
+!vibcreg/data/UEAArchive_2018/__init__.py
 
 # ignore saved model.
 vibcreg/checkpoints/frameworks/*

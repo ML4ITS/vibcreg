@@ -4,6 +4,7 @@ VIbCReg: Variance Invariance better-Covariance Regularization
 Reference:
 [1] A. Bardes et al., 2021, "VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning"
 """
+import numpy as np
 import torch.nn as nn
 import wandb
 from torch import relu
@@ -73,13 +74,22 @@ class VIbCReg(nn.Module):
         :param x1: augmented view 1
         :param x2: augmented view 2
         """
-        y1, y2 = self.encoder(x1), self.encoder(x2)  # (batch_size * feature_size)
+        y1 = self.encoder(x1)  # y1: (batch_size * feature_size)
+        y2 = self.encoder(x2)
         z1, z2 = self.projector(y1), self.projector(y2)
         return y1, y2, z1, z2
 
 
 class Utility_VIbCReg(Utility_SSL):
-    def __init__(self, lambda_vibcreg=25, mu_vibcreg=25, nu_vibcreg=200, loss_type_vibcreg="mse", use_vicreg_FD_loss=False, **kwargs):
+    def __init__(self,
+                 lambda_vibcreg=25,
+                 mu_vibcreg=25,
+                 nu_vibcreg=200,
+                 loss_type_vibcreg="mse",
+                 use_vicreg_FD_loss=False,
+                 length_sampling=False,
+                 sample_len_ratios=None,
+                 **kwargs):
         """
         :param lambda_vibcreg: weight for the similarity (invariance) loss.
         :param mu_vibcreg: weight for the FcE (variance) loss
@@ -94,6 +104,8 @@ class Utility_VIbCReg(Utility_SSL):
         self.nu_vibcreg = nu_vibcreg
         self.loss_type_vibcreg = loss_type_vibcreg
         self.use_vicreg_FD_loss = use_vicreg_FD_loss
+        self.length_sampling = length_sampling
+        self.sample_len_ratios = sample_len_ratios
         self.weight_on_msfLoss = kwargs.get("weight_on_msfLoss", 0.)
 
         self.amsf = None
@@ -133,12 +145,27 @@ class Utility_VIbCReg(Utility_SSL):
         for subx_view1, subx_view2, label in data_loader:  # subx: (batch * n_channels * subseq_len)
             optimizer.zero_grad()
 
+            if self.length_sampling:
+                seq_len = subx_view1.shape[-1]
+                sample_len_ratio1 = np.random.uniform(*self.sample_len_ratios['view1'])
+                sample_len_ratio2 = np.random.uniform(*self.sample_len_ratios['view2'])
+                subseq_lens = np.array([seq_len * sample_len_ratio1, seq_len * sample_len_ratio2]).astype(int)
+                rand_ts1 = 0 if seq_len == subseq_lens[0] else np.random.randint(0, seq_len - subseq_lens[0])
+                rand_ts2 = 0 if seq_len == subseq_lens[1] else np.random.randint(0, seq_len - subseq_lens[1])
+                subx_view1 = subx_view1[:, :, rand_ts1:rand_ts1 + subseq_lens[0]]
+                subx_view2 = subx_view2[:, :, rand_ts2:rand_ts2 + subseq_lens[1]]
+
             y1, y2, z1, z2 = self.rl_model(subx_view1.to(self.device), subx_view2.to(self.device))
 
+            # loss: vibcreg
             sim_loss = vibcreg_invariance_loss(z1, z2, self.loss_type_vibcreg)
             var_loss = vibcreg_var_loss(z1, z2)  # FcE loss
             cov_loss = vibcreg_cov_loss(z1, z2) if not self.use_vicreg_FD_loss else vicreg_cov_loss(z1, z2)  # FD loss
             L = self.lambda_vibcreg * sim_loss + self.mu_vibcreg * var_loss + self.nu_vibcreg * cov_loss
+
+            # loss: attention score
+            # att_score_loss = att_score.mean()
+            # L += att_score_loss
 
             msf_loss = None
             if self.weight_on_msfLoss:
@@ -166,6 +193,7 @@ class Utility_VIbCReg(Utility_SSL):
             loss_hist['sim_loss'] = sim_loss
             loss_hist['var_loss'] = var_loss
             loss_hist['cov_loss'] = cov_loss
+            # loss_hist['att_score_loss'] = att_score_loss
             self.status_log_per_iter(status, y1, loss_hist)
 
         if step == 0:
