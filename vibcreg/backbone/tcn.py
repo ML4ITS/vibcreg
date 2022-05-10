@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn.utils import weight_norm
@@ -88,6 +89,8 @@ class TemporalConvNet(nn.Module):
                 nn.Linear(out_channels, 1),
                 nn.ReLU()
             )
+        elif pool_type == 'combined2':
+            self.linear = nn.Linear(out_channels, 1)
 
     @staticmethod
     def _flatten(x):
@@ -95,7 +98,7 @@ class TemporalConvNet(nn.Module):
         x = x.view(batch_size, -1)
         return x
 
-    def forward(self, x, return_concat_combined=True):
+    def forward(self, x, return_concat_combined=True, projector_type='vibcreg', one_sided_partial_mask=0.):
         out = self.network(x)
 
         # pooling
@@ -127,6 +130,27 @@ class TemporalConvNet(nn.Module):
             out_att = torch.sum(out_att, dim=1)  # (N, C)
 
             # out = torch.cat((out_gap, out_gmp, out_att), dim=-1)  # (N, 3*C)
+
+            if return_concat_combined:
+                return torch.cat((out_gap, out_gmp, out_att), dim=-1)
+            else:
+                return out_gap, out_gmp, out_att
+
+        elif self.pool_type == 'combined2':
+            out = out.transpose(1, 2)  # (N, L, C)
+
+            while True:
+                ind = np.random.rand(out.shape[1]) > one_sided_partial_mask
+                if True in ind:
+                    break
+            out = out[:, ind, :]
+
+            out_gap = torch.mean(out, dim=1)  # (N, C)
+            out_gmp = torch.max(out, dim=1).values  # (N, C)
+
+            att_score = torch.relu(self.linear(out))  # (N, L, 1)
+            out_att = out * att_score  # (N, L, C)
+            out_att = torch.sum(out_att, dim=1)  # (N, C)
 
             if return_concat_combined:
                 return torch.cat((out_gap, out_gmp, out_att), dim=-1)

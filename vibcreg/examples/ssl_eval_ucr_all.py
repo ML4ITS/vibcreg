@@ -62,31 +62,17 @@ if __name__ == "__main__":
 
     used_augmentations_origin = config_dataset['used_augmentations']
 
-    # ucr_dataset_names = ['Ham',
-    #                      'InsectWingbeatSound',
-    #                      'MiddlePhalanxOutlineAgeGroup',
-    #                      'ProximalPhalanxTW',
-    #                      'NonInvasiveFetalECGThorax1',
-    #                      ]
-    # ucr_dataset_names = ['NonInvasiveFetalECGThorax1',
-    #                      ]
-    # ucr_dataset_names = ucr_dataset_names[ucr_dataset_names.index('DiatomSizeReduction'):]
-    ucr_dataset_names = ['InsectWingbeatSound',
-                         'LargeKitchenAppliances',
-                         'MedicalImages',
-                         'NonInvasiveFatalECGThorax1',
-                         'NonInvasiveFatalECGThorax2',
-                         'PhalangesOutlinesCorrect',
-                         'Phoneme',
-                         'ProximalPhalanxOutlineAgeGroup',
-                         'ProximalPhalanxOutlineCorrect',
-                         ]  # NonInvasiveFetalECGThorax1
+    # ucr_dataset_names = ucr_dataset_names[::-1]
+    # ucr_dataset_names = ['MiddlePhalanxOutlineAgeGroup']
+    ucr_dataset_names = ['EthanolLevel',]
+                         #'ElectricDevices']
+    # ucr_dataset_names = ucr_dataset_names[ucr_dataset_names.index('Fungi'):]
     rand_seeds = [0]
     for rand_seed in rand_seeds:
         for ucr_dataset_name in ucr_dataset_names:
 
             # temporarily omit these datasets for faster eval
-            if ucr_dataset_name in ['ElectricDevices']:
+            if ucr_dataset_name in ['ElectricDevices', 'AllGestureWiimoteX', 'AllGestureWiimoteY', 'AllGestureWiimoteZ']:
                 continue
 
             try:
@@ -172,7 +158,7 @@ if __name__ == "__main__":
                 # parameters = {'C': [2 ** i for i in range(-5, 17, 2)] + [10**10],
                 #               'gamma': [2 ** i for i in range(-15, 5, 2)] + ['scale'],
                 #               }
-                svc = svm.SVC(kernel='rbf')
+                svc = svm.SVC(kernel='rbf') #max_iter=1000)
                 print('SVM grid search starts.')
                 search = GridSearchCV(svc, parameters, n_jobs=args.n_jobs, verbose=1)
                 # scaler = StandardScaler()

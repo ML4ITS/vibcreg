@@ -78,6 +78,9 @@ class DatasetImporterDefault(object):
         self.X_train, self.X_test = df_train.iloc[:, 1:].values, df_test.iloc[:, 1:].values
         self.Y_train, self.Y_test = df_train.iloc[:, [0]].values, df_test.iloc[:, [0]].values
 
+        np.nan_to_num(self.X_train, copy=False)
+        np.nan_to_num(self.X_test, copy=False)
+
         print('self.X_train.shape:', self.X_train.shape)
         print('self.X_test.shape:', self.X_test.shape)
 

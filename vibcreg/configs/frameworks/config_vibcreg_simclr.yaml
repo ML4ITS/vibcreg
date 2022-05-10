@@ -17,43 +17,66 @@ sample_len_ratios:
 #    view2:
 #      - 0.2
 #      - 0.5
+one_sided_partial_mask: 0.3
+within_augs:
+  - "AmpR"
+len_ratios:
+  - 0.5
+  - 1.0
 
 # framework utility (belongs to the abstract class: `Utility_SSL`)
 framework_type: "vibcreg_simclr"
 
 # backbone-encoder
-backbone_type: "resnet1d"
-n_blocks_enc:
-  - 1
-  - 1
-  - 1
-  - 1
-out_channels_enc: 64
-kernel_size_enc: 3
-norm_layer_type_enc: "BatchNorm"
-dropout_rate_enc: 0.
-pool_type: 'combined2' # gap, gmp, att, combined
+#backbone_type: "resnet1d"
+#n_blocks_enc:
+#  - 1
+#  - 1
+#  - 1
+#  - 1
+#out_channels_enc: 64
+#kernel_size_enc: 3
+#norm_layer_type_enc: "BatchNorm"
+#dropout_rate_enc: 0.
+#pool_type: 'combined2' # gap, gmp, att, combined
 
 # TCN
 #backbone_type: "tcn"
 #num_channels:
 #  - 32
 #  - 32
+#  - 32
+#  - 32
 #  - 64
 #  - 64
-#  - 128
-#  - 128
-#  - 256
-#  - 256
+#  - 64
+#  - 64
 #kernel_size: 3
 #dropout: 0.
-#pool_type: 'gmp'
+#pool_type: 'combined2'
+
+# Causal CNN
+#backbone_type: "causal_cnn"
+#pool_type: 'combined2'
+
+# Onion
+backbone_type: "onion"
+n_blocks_enc:
+  - 1
+  - 1
+  - 1
+  - 1
+out_channels_enc: 256
+kernel_size_enc: 3
+norm_layer_type_enc: "BatchNorm"
+dropout_rate_enc: 0.
+pool_type: 'combined2' # gap, gmp, att, combined
 
 
 # train
 lr: 0.001
-n_epochs: 200 #100
-weight_decay: 0.00001
+n_epochs: 200 #200 #100
+weight_decay: 0.00001 #0.00001
 
 # log & validation/test
 project_name:

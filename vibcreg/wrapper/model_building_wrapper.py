@@ -4,6 +4,8 @@ from vibcreg.backbone.apc_encoder import APCEncoder
 from vibcreg.backbone.downsampling_cnn import DownsamplingCNN
 from vibcreg.backbone.resnet import ResNet1D
 from vibcreg.backbone.tcn import TemporalConvNet
+from vibcreg.backbone.causal_cnn import *
+from vibcreg.backbone.onion import *
 
 from vibcreg.frameworks.apc import APC, Utility_APC
 from vibcreg.frameworks.barlow_twins import BarlowTwins, Utility_BarlowTwins
@@ -36,6 +38,10 @@ class ModelBuilder(object):
             encoder = APCEncoder(self.config_dataset["n_data_channels"], **self.config_framework)
         elif backbone_type == 'tcn':
             encoder = TemporalConvNet(self.config_dataset["n_data_channels"], **self.config_framework)
+        elif backbone_type == 'causal_cnn':
+            encoder = CausalCNNEncoder(self.config_dataset["n_data_channels"], **self.config_framework)
+        elif backbone_type == 'onion':
+            encoder = OnionNet(self.config_dataset["n_data_channels"], **self.config_framework)
         else:
             raise ValueError("invalid `backbone_type`")
         return encoder

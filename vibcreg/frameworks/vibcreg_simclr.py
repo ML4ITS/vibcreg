@@ -53,7 +53,8 @@ class Projector(nn.Module):
         self.linear2 = nn.Linear(proj_hid, proj_hid)
         self.nl2 = normalization_layer(norm_layer_type_proj, proj_hid, dim=2)
         self.linear3 = nn.Linear(proj_hid, proj_out)
-        self.nl3 = normalization_layer('IterNorm', proj_out, dim=2) if self.add_IterN_at_the_last_in_proj_vibcreg else None
+        self.nl3 = normalization_layer('IterNorm', proj_out,
+                                       dim=2) if self.add_IterN_at_the_last_in_proj_vibcreg else None
 
     def forward(self, x):
         out = torch.relu(self.nl1(self.linear1(x)))
@@ -74,10 +75,11 @@ class VIbCRegSimCLR(nn.Module):
 
         self.pool_type = kwargs.get('pool_type', None)
         # last_channels_enc = 3 * last_channels_enc if self.pool_type == 'combined' else last_channels_enc
-        self.projector = Projector(last_channels_enc, proj_hid_vibcreg, proj_out_vibcreg)
-        self.projector_simclr = ProjectorSimCLR(last_channels_enc, proj_hid_vibcreg, proj_out_vibcreg)
+        self.projector = Projector(last_channels_enc, 4 * last_channels_enc,
+                                   4 * last_channels_enc)  # Projector(last_channels_enc, proj_hid_vibcreg, proj_out_vibcreg)
+        # self.projector_simclr = ProjectorSimCLR(last_channels_enc, proj_hid_vibcreg, proj_out_vibcreg)
 
-    def forward(self, x1, x2, projector_type: str = 'vibcreg', return_y=False):
+    def forward(self, x1, x2, projector_type: str = 'vibcreg', return_y=False, one_sided_partial_mask=0.):
         """
         :param x1: augmented view 1
         :param x2: augmented view 2
@@ -91,8 +93,8 @@ class VIbCRegSimCLR(nn.Module):
         #     z1, z2 = self.projector_simclr(y1), self.projector_simclr(y2)
         #     return y1, y2, z1, z2
 
-        y1_gap, y1_gmp, y1_att = self.encoder(x1, return_concat_combined=False)
-        y2_gap, y2_gmp, y2_att = self.encoder(x2, return_concat_combined=False)
+        (gap_y1, gmp_y1, amp_y1), (gap_cy1, gmp_cy1, amp_cy1) = self.encoder(x1, return_concat_combined=False)
+        (gap_y2, gmp_y2, amp_y2), (gap_cy2, gmp_cy2, amp_cy2) = self.encoder(x2, return_concat_combined=False)
 
         if projector_type == 'vibcreg':
             projector = self.projector
@@ -101,20 +103,34 @@ class VIbCRegSimCLR(nn.Module):
         else:
             projector = None
 
-        z1_gap = projector(y1_gap)
-        z1_gmp = projector(y1_gmp)
-        z1_att = projector(y1_att)
-        z2_gap = projector(y2_gap)
-        z2_gmp = projector(y2_gmp)
-        z2_att = projector(y2_att)
+        z1_gap = projector(gap_y1)
+        z1_gmp = projector(gmp_y1)
+        z1_amp = projector(amp_y1)
+
+        z2_gap = projector(gap_y2)
+        z2_gmp = projector(gmp_y2)
+        z2_amp = projector(amp_y2)
+
+        cz1_gap = projector(gap_cy1)
+        cz1_gmp = projector(gmp_cy1)
+        cz1_amp = projector(amp_cy1)
+
+        cz2_gap = projector(gap_cy2)
+        cz2_gmp = projector(gmp_cy2)
+        cz2_amp = projector(amp_cy2)
+
         if return_y:
-            return (y1_gap, y1_gmp, y1_att), (y2_gap, y2_gmp, y2_att), (z1_gap, z1_gmp, z1_att), (z2_gap, z2_gmp, z2_att)
+            return (gap_y1, gmp_y1, amp_y1), (gap_y2, gmp_y2, amp_y2), \
+                   (gap_cy1, gmp_cy1, amp_cy1), (gap_cy2, gmp_cy2, amp_cy2), \
+                   (z1_gap, z1_gmp, z1_amp), (z2_gap, z2_gmp, z2_amp), \
+                   (cz1_gap, cz1_gmp, cz1_amp), (cz2_gap, cz2_gmp, cz2_amp)
         else:
-            return (z1_gap, z1_gmp, z1_att), (z2_gap, z2_gmp, z2_att)
+            return (z1_gap, z1_gmp, z1_amp), (z2_gap, z2_gmp, z2_amp), \
+                   (cz1_gap, cz1_gmp, cz1_amp), (cz2_gap, cz2_gmp, cz2_amp)
 
 
 class contrastive_loss(nn.Module):
-    def __init__(self, tau : float, normalize : bool):
+    def __init__(self, tau: float, normalize: bool):
         super(contrastive_loss, self).__init__()
         self.tau = tau
         self.normalize = normalize
@@ -153,6 +169,9 @@ class Utility_VIbCRegSimCLR(Utility_SSL):
                  w_simclr=1,
                  length_sampling=False,
                  sample_len_ratios=None,
+                 one_sided_partial_mask=0.,
+                 within_augs=[],
+                 len_ratios=(0.5, 1.),
                  **kwargs):
         """
         :param lambda_vibcreg: weight for the similarity (invariance) loss.
@@ -171,6 +190,9 @@ class Utility_VIbCRegSimCLR(Utility_SSL):
         self.length_sampling = length_sampling
         self.sample_len_ratios = sample_len_ratios
         self.pool_type = kwargs.get('pool_type', None)
+        self.one_sided_partial_mask = one_sided_partial_mask
+        self.within_augs = within_augs
+        self.len_ratios = len_ratios
 
     def wandb_watch(self):
         if self.use_wandb:
@@ -180,8 +202,43 @@ class Utility_VIbCRegSimCLR(Utility_SSL):
     def status_log_per_iter(self, status, z, loss_hist: dict):
         loss_hist = {k + f'.{status}': v for k, v in loss_hist.items()}
         loss_hist['global_step'] = self.global_step
-        wandb.log({'global_step': self.global_step, 'feature_comp_expr_metrics': self._feature_comp_expressiveness_metrics(z), 'feature_decorr_metrics': self._compute_feature_decorr_metrics(z)})
+        wandb.log(
+            {'global_step': self.global_step, 'feature_comp_expr_metrics': self._feature_comp_expressiveness_metrics(z),
+             'feature_decorr_metrics': self._compute_feature_decorr_metrics(z)})
         wandb.log(loss_hist)
+
+    def amplitude_resize(self, subx_views, AmpR_rate):
+        """
+        :param subx_view: (B, C, L)
+        """
+        new_subx_views = []
+        B, n_channels = subx_views[0].shape[0], subx_views[0].shape[1]
+        for i in range(len(subx_views)):
+            # mul_AmpR = 1 + np.random.uniform(-AmpR_rate, AmpR_rate, size=(B, n_channels, 1))
+            mul_AmpR = 1 + np.random.normal(0., AmpR_rate, size=(B, n_channels, 1))
+            new_subx_view = subx_views[i] * torch.from_numpy(mul_AmpR).float()
+            new_subx_views.append(new_subx_view)
+
+        if len(new_subx_views) == 1:
+            new_subx_views = new_subx_views[0]
+        return new_subx_views
+
+    def vertical_shift(self, subx_views, Vshift_rate):
+        """
+        :param subx_view: (B, C, L)
+        """
+        new_subx_views = []
+        B, n_channels = subx_views[0].shape[0], subx_views[0].shape[1]
+        for i in range(len(subx_views)):
+            std_x = torch.std(subx_views[i], dim=-1, keepdim=True)  # (B, C, 1)
+            vshift_mag = std_x * torch.from_numpy(np.random.uniform(-Vshift_rate, Vshift_rate, size=(B, n_channels, 1)))
+            vshift_mag = vshift_mag.float()
+            new_subx_view = subx_views[i] + vshift_mag
+            new_subx_views.append(new_subx_view)
+
+        if len(new_subx_views) == 1:
+            new_subx_views = new_subx_views[0]
+        return new_subx_views
 
     def representation_learning(self, data_loader, optimizer, status):
         """
@@ -195,87 +252,88 @@ class Utility_VIbCRegSimCLR(Utility_SSL):
             optimizer.zero_grad()
 
             L = 0
-            # zs = []
-            for i in range(2):
-                # if self.length_sampling:
+            sim_loss = 0
+            var_loss = 0
+            cov_loss = 0
+            len_ratios = [(r, r) for r in self.len_ratios]
+            # for len_ratio in len_ratios:
+            for len_ratio in len_ratios:
                 seq_len = x_view1.shape[-1]
-                # sample_len_ratio1 = np.random.uniform(*self.sample_len_ratios['view1'])
-                sample_len_ratio1 = 0.5 if i == 0 else 1.0 #0.9 #0.9
-                # sample_len_ratio2 = np.random.uniform(*self.sample_len_ratios['view2'])
-                # subseq_lens = np.array([seq_len * sample_len_ratio1, seq_len * sample_len_ratio2]).astype(int)
-                subseq_lens = np.array([seq_len * sample_len_ratio1, seq_len * sample_len_ratio1]).astype(int)
-                rand_ts1 = 0 if seq_len == subseq_lens[0] else np.random.randint(0, seq_len - subseq_lens[0])
-                rand_ts2 = 0 if seq_len == subseq_lens[1] else np.random.randint(0, seq_len - subseq_lens[1])
-                subx_view1 = x_view1[:, :, rand_ts1:rand_ts1 + subseq_lens[0]]
-                subx_view2 = x_view2[:, :, rand_ts2:rand_ts2 + subseq_lens[1]]
+                sample_len_ratio1, sample_len_ratio2 = len_ratio[0], len_ratio[1]
+                # subseq_lens = np.array([seq_len * sample_len_ratio1, seq_len * sample_len_ratio1]).astype(int)
+                subseq_lens = np.array([seq_len * sample_len_ratio1, seq_len * sample_len_ratio2]).astype(int)
+                # if len_ratio != 1.0:
+                subx_view1 = torch.zeros(x_view1.shape[0], x_view1.shape[1], subseq_lens[0]).float()
+                subx_view2 = torch.zeros(x_view2.shape[0], x_view2.shape[1],
+                                         subseq_lens[1]).float()  # torch.clone(subx_view1)
+                for b in range(x_view1.shape[0]):
+                    rand_ts1 = 0 if seq_len == subseq_lens[0] else np.random.randint(0, seq_len - subseq_lens[0])
+                    rand_ts2 = 0 if seq_len == subseq_lens[1] else np.random.randint(0, seq_len - subseq_lens[1])
+                    subx_view1[b] = x_view1[b, :, rand_ts1:rand_ts1 + subseq_lens[0]]
+                    subx_view2[b] = x_view2[b, :, rand_ts2:rand_ts2 + subseq_lens[1]]
+                # else:
+                #     subx_view1 = x_view1
+                #     subx_view2 = x_view2
 
                 # loss: vibcreg
-                # y1, y2, z1, z2 = self.rl_model(subx_view1.to(self.device), subx_view2.to(self.device), 'vibcreg')
-                # sim_loss = vibcreg_invariance_loss(z1, z2)
-                # var_loss = vibcreg_var_loss(z1, z2)  # FcE loss
-                # cov_loss = vibcreg_cov_loss(z1, z2)
-                # L = self.lambda_vibcreg * sim_loss + self.mu_vibcreg * var_loss + self.nu_vibcreg * cov_loss
+                # if len_ratio == 1.0:
+                #     (y1_gap, y1_gmp, y1_att), (y2_gap, y2_gmp, y2_att), \
+                #     (z1_gap, z1_gmp, z1_att), (z2_gap, z2_gmp, z2_att) = self.rl_model(subx_view1.to(self.device),
+                #                                                                        subx_view2.to(self.device),
+                #                                                                        'vibcreg',
+                #                                                                        return_y=True,
+                #                                                                        one_sided_partial_mask=self.one_sided_partial_mask)
+                #     sim_loss_mm = vibcreg_invariance_loss(z1_gap.detach(), z2_gap) \
+                #                   + vibcreg_invariance_loss(z1_gmp.detach(), z2_gmp) \
+                #                   + vibcreg_invariance_loss(z1_att.detach(), z2_att)
+                #     sim_loss_mm /= 3
+                #     var_loss_mm = vibcreg_var_loss(z1_gap, z1_gap) / 2 \
+                #                   + vibcreg_var_loss(z1_gmp, z1_gmp) / 2 \
+                #                   + vibcreg_var_loss(z1_att, z1_att) / 2
+                #     var_loss_mm /= 3
+                #     cov_loss_mm = vibcreg_cov_loss(z1_gap, z1_gap) / 2 \
+                #                   + vibcreg_cov_loss(z1_gmp, z1_gmp) / 2 \
+                #                   + vibcreg_cov_loss(z1_att, z1_att) / 2
+                #     cov_loss_mm /= 3
+                #     L += self.lambda_vibcreg * sim_loss_mm + self.mu_vibcreg * var_loss_mm + self.nu_vibcreg * cov_loss_mm
+                # else:
 
-                (y1_gap, y1_gmp, y1_att), (y2_gap, y2_gmp, y2_att), \
-                (z1_gap, z1_gmp, z1_att), (z2_gap, z2_gmp, z2_att) = self.rl_model(subx_view1.to(self.device), subx_view2.to(self.device), 'vibcreg', return_y=True)
-                sim_loss = vibcreg_invariance_loss(z1_gap, z2_gap) + vibcreg_invariance_loss(z1_gmp, z2_gmp) + vibcreg_invariance_loss(z1_att, z2_att)
-                sim_loss /= 3
-                var_loss = vibcreg_var_loss(z1_gap, z2_gap) + vibcreg_var_loss(z1_gmp, z2_gmp) + vibcreg_var_loss(z1_att, z2_att)
-                var_loss /= 3
-                cov_loss = vibcreg_cov_loss(z1_gap, z2_gap) + vibcreg_cov_loss(z1_gmp, z2_gmp) + vibcreg_cov_loss(z1_att, z2_att)
-                cov_loss /= 3
-                L += self.lambda_vibcreg * sim_loss + self.mu_vibcreg * var_loss + self.nu_vibcreg * cov_loss
+                # augmentations
+                # subx_view1, subx_view2 = self.vertical_shift([subx_view1, subx_view2], Vshift_rate=0.5)
+                for aug in self.within_augs:
+                    if aug == 'AmpR':
+                        subx_view1, subx_view2 = self.amplitude_resize([subx_view1, subx_view2], AmpR_rate=0.1)
 
-                # zs.append([z1_gap, z1_gmp, z1_att, z2_gap, z2_gmp, z2_att])
-                # zs.append([z1_gap, z1_gmp, z2_gap, z2_gmp])
+                (gap_y1, gmp_y1, amp_y1), (gap_y2, gmp_y2, amp_y2), \
+                (gap_cy1, gmp_cy1, amp_cy1), (gap_cy2, gmp_cy2, amp_cy2), \
+                (z1_gap, z1_gmp, z1_amp), (z2_gap, z2_gmp, z2_amp), \
+                (cz1_gap, cz1_gmp, cz1_amp), (cz2_gap, cz2_gmp, cz2_amp) = self.rl_model(subx_view1.to(self.device),
+                                                                                         subx_view2.to(self.device),
+                                                                                         'vibcreg',
+                                                                                         return_y=True,
+                                                                                         one_sided_partial_mask=self.one_sided_partial_mask)
 
-            # sim_loss_lg = 0
-            # j = 0
-            # for z_l, z_g in zip(zs[0], zs[1]):
-            #     sim_loss_lg += vibcreg_invariance_loss(z_l, z_g, 'cos_sim')  # l: local, g: global
-            #     j += 1
-            # sim_loss_lg /= j
-            # L += sim_loss_lg
+                sim_loss += vibcreg_invariance_loss(z1_gap, z2_gap) \
+                            + vibcreg_invariance_loss(z1_gmp, z2_gmp) \
+                            + vibcreg_invariance_loss(z1_amp, z2_amp)
+                var_loss += vibcreg_var_loss(z1_gap, z2_gap) \
+                            + vibcreg_var_loss(z1_gmp, z2_gmp) \
+                            + vibcreg_var_loss(z1_amp, z2_amp)
+                cov_loss += vibcreg_cov_loss(z1_gap, z2_gap) \
+                            + vibcreg_cov_loss(z1_gmp, z2_gmp) \
+                            + vibcreg_cov_loss(z1_amp, z2_amp)
 
-            # loss: simclr
-            # seq_len = x_view1.shape[-1]
-            # sample_len_ratio1 = 0.9
-            # subseq_lens = np.array([seq_len * sample_len_ratio1, seq_len * sample_len_ratio1]).astype(int)
-            # rand_ts1 = 0 if seq_len == subseq_lens[0] else np.random.randint(0, seq_len - subseq_lens[0])
-            # rand_ts2 = 0 if seq_len == subseq_lens[1] else np.random.randint(0, seq_len - subseq_lens[1])
-            # subx_view1 = x_view1[:, :, rand_ts1:rand_ts1 + subseq_lens[0]]
-            # subx_view2 = x_view2[:, :, rand_ts2:rand_ts2 + subseq_lens[1]]
+                sim_loss += vibcreg_invariance_loss(cz1_gap, cz2_gap) \
+                            + vibcreg_invariance_loss(cz1_gmp, cz2_gmp) \
+                            + vibcreg_invariance_loss(cz1_amp, cz2_amp)
+                var_loss += vibcreg_var_loss(cz1_gap, cz2_gap) \
+                            + vibcreg_var_loss(cz1_gmp, cz2_gmp) \
+                            + vibcreg_var_loss(cz1_amp, cz2_amp)
+                cov_loss += vibcreg_cov_loss(cz1_gap, cz2_gap) \
+                            + vibcreg_cov_loss(cz1_gmp, cz2_gmp) \
+                            + vibcreg_cov_loss(cz1_amp, cz2_amp)
 
-            # (y1_gap, y1_gmp, y1_att), (y2_gap, y2_gmp, y2_att), \
-            # (z1_gap, z1_gmp, z1_att), (z2_gap, z2_gmp, z2_att) = \
-            #     self.rl_model(subx_view1.to(self.device), subx_view2.to(self.device), 'simclr', return_y=True)
-            # simclr_loss = self.loss_func(z1_gap, z2_gap, self.device) + self.loss_func(z1_gmp, z2_gmp, self.device) #+ self.loss_func(z1_att, z2_att, self.device)
-            # simclr_loss /= 2#3
-            #
-            # # y1, y2, z1, z2 = self.rl_model(subx_view1.to(self.device), subx_view2.to(self.device), 'simclr')
-            # # simclr_loss = self.loss_func(z1, z2, self.device)
-            # L += self.w_simclr * simclr_loss
-
-            # if self.length_sampling:
-            #     seq_len = x_view1.shape[-1]
-            #     sample_len_ratio1 = np.random.uniform(0.9, 1.0)
-            #     # sample_len_ratio2 = np.random.uniform(0.5, 1.0)
-            #     sample_len_ratio2 = sample_len_ratio1
-            #     subseq_lens = np.array([seq_len * sample_len_ratio1, seq_len * sample_len_ratio2]).astype(int)
-            #     rand_ts1 = 0 if seq_len == subseq_lens[0] else np.random.randint(0, seq_len - subseq_lens[0])
-            #     rand_ts2 = 0 if seq_len == subseq_lens[1] else np.random.randint(0, seq_len - subseq_lens[1])
-            #     subx_view1 = x_view1[:, :, rand_ts1:rand_ts1 + subseq_lens[0]]
-            #     subx_view2 = x_view2[:, :, rand_ts2:rand_ts2 + subseq_lens[1]]
-            # y1, y2, z1, z2 = self.rl_model(subx_view1.to(self.device), subx_view2.to(self.device), 'simclr')
-            # simclr_loss = self.loss_func(z1, z2, self.device)
-            # L += self.w_simclr * simclr_loss
-
-            # # loss: vibcreg-2
-            # sim_loss2 = vibcreg_invariance_loss(z1, z2, 'mse')
-            # var_loss2 = vibcreg_var_loss(z1, z2)  # FcE loss
-            # cov_loss2 = vibcreg_cov_loss(z1, z2)
-            # L += self.lambda_vibcreg * sim_loss2 + self.mu_vibcreg * var_loss2 + self.nu_vibcreg * cov_loss2
-            # L += self.mu_vibcreg * var_loss2 + self.nu_vibcreg * cov_loss2
+            L += self.lambda_vibcreg * sim_loss + self.mu_vibcreg * var_loss + self.nu_vibcreg * cov_loss
 
             # weight update
             if status == "train":
@@ -292,6 +350,9 @@ class Utility_VIbCRegSimCLR(Utility_SSL):
                          'sim_loss': sim_loss,
                          'var_loss': var_loss,
                          'cov_loss': cov_loss,
+                         # 'sim_loss_mm': sim_loss_mm,
+                         # 'var_loss_mm': var_loss_mm,
+                         # 'cov_loss_mm': cov_loss_mm,
                          # 'sim_loss2': sim_loss2,
                          # 'var_loss2': var_loss2,
                          # 'cov_loss2': cov_loss2,
@@ -299,7 +360,7 @@ class Utility_VIbCRegSimCLR(Utility_SSL):
                          # 'sim_loss_lg': sim_loss_lg,
                          }
             # self.status_log_per_iter(status, y1, loss_hist)
-            self.status_log_per_iter(status, torch.cat((y1_gap,y1_gmp,y1_att), dim=-1), loss_hist)
+            self.status_log_per_iter(status, torch.cat((gap_y1, gmp_y1, amp_y1), dim=-1), loss_hist)
 
         if step == 0:
             return 0.
@@ -308,4 +369,3 @@ class Utility_VIbCRegSimCLR(Utility_SSL):
 
     def _representation_for_validation(self, x):
         return super()._representation_for_validation(x)
-

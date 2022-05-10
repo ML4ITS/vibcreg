@@ -178,7 +178,10 @@ class Utility_SSL(ABC):
             if dataset_name == "PTB-XL":
                 self.log_macro_f1score_during_validation(val_data_loader, n_neighbors_kNN, n_jobs_for_kNN)
             else:
-                self.log_kNN_acc_during_validation(val_data_loader, n_neighbors_kNN, n_jobs_for_kNN)
+                try:
+                    self.log_kNN_acc_during_validation(val_data_loader, n_neighbors_kNN, n_jobs_for_kNN)
+                except ValueError:
+                    pass
 
         return val_loss
 

@@ -19,7 +19,7 @@ use_DatasetImporterDefault: True
 subseq_len: 135
 used_augmentations:
   - "RC"
-  - "AmpR"
+#  - "AmpR"
 #  - "Vshift"
 AmpR_rate: 0.3
 Vshift_rate: 0.5

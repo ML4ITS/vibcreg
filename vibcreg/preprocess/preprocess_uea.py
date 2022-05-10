@@ -176,10 +176,17 @@ if __name__ == "__main__":
 
     os.chdir("../")
 
+    uea_dataset_name = 'SpokenArabicDigits'
+    data_root = get_git_root().joinpath("vibcreg", "data", "UEAArchive_2018", uea_dataset_name)
+    test_x, test_y = load_from_tsfile(str(data_root.joinpath(f'{uea_dataset_name}_TEST.ts')))
+    seq_len = len(test_x.iloc[0, 0])
+    print('seq_len:', seq_len)
+
     # data pipeline
     augs = Augmentations(subseq_len=48)
-    dataset_importer = DatasetImporterDefaultUEA("ArticularyWordRecognition")
-    train_dataset = UEADataset("train", dataset_importer, augs, ["RC", "AmpR"])
+    dataset_importer = DatasetImporterDefaultUEA(uea_dataset_name)
+    # train_dataset = UEADataset("train", dataset_importer, augs, ["RC", "AmpR"])
+    train_dataset = UEADataset("train", dataset_importer, augs, ['AmpR'])
     # test_dataset = UCRDataset("test", dataset_importer, augs, [])
     train_data_loader = DataLoader(train_dataset, batch_size=32, num_workers=0, shuffle=True)
     # test_data_loader = DataLoader(test_dataset, batch_size=32, num_workers=0, shuffle=True)
